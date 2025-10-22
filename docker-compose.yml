@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Package builder service
+  builder:
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+    container_name: asterisk-builder
+    volumes:
+      - ./packages/asterisk:/home/builder/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+    working_dir: /home/builder/asterisk
+    command: /bin/sh
+    stdin_open: true
+    tty: true
+
+  # Asterisk PBX runtime (for testing)
+  asterisk:
+    build:
+      context: .
+      dockerfile: docker/asterisk.Dockerfile
+    container_name: asterisk-pbx
+    ports:
+      - "5060:5060/udp"  # SIP
+      - "5061:5061/tcp"  # SIP TLS
+      - "10000-10099:10000-10099/udp"  # RTP
+    volumes:
+      - asterisk-config:/etc/asterisk
+      - asterisk-data:/var/lib/asterisk
+      - asterisk-logs:/var/log/asterisk
+      - asterisk-spool:/var/spool/asterisk
+    restart: unless-stopped
+    profiles:
+      - runtime  # Only start when explicitly requested
+
+  # Optional: Simple APK repository server
+  repository:
+    image: nginx:alpine
+    container_name: asterisk-repo
+    ports:
+      - "8080:80"
+    volumes:
+      - ./repository:/usr/share/nginx/html:ro
+    profiles:
+      - repository  # Only start when explicitly requested
+
+volumes:
+  asterisk-config:
+  asterisk-data:
+  asterisk-logs:
+  asterisk-spool:

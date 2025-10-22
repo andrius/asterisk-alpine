@@ -1,0 +1,29 @@
+# Build artifacts
+packages/asterisk/src/
+packages/asterisk/pkg/
+*.apk
+APKINDEX.tar.gz
+
+# Signing keys (NEVER commit these!)
+keys/*
+*.rsa
+*.rsa.pub
+!keys/.gitkeep
+
+# abuild cache
+.abuild-cache/
+
+# Docker volumes
+.docker/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
