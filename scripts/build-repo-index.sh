@@ -39,6 +39,15 @@ echo ""
 # Navigate to repository directory
 cd "$REPO_PATH"
 
+# Trust our own signing key so apk index accepts our signed packages.
+# Without this, apk reports every .apk as "UNTRUSTED signature" and exits,
+# because this fresh container never had the key added to /etc/apk/keys.
+PUBKEY="$KEYS_DIR/packages@asterisk-alpine.rsa.pub"
+if [ -f "$PUBKEY" ]; then
+    echo "Trusting signing public key for indexing..."
+    sudo cp "$PUBKEY" /etc/apk/keys/
+fi
+
 echo "Generating APKINDEX.tar.gz..."
 
 # Generate the index
