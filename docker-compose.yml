@@ -79,20 +79,6 @@ services:
       - ./scripts:/home/builder/scripts:ro
     working_dir: /home/builder/main/asterisk
 
-  builder-13:
-    <<: *builder-common
-    build:
-      context: .
-      dockerfile: docker/builder.Dockerfile
-      args:
-        ALPINE_VERSION: "3.24"
-    volumes:
-      - ./packages/13:/home/builder/main/asterisk:rw
-      - ./repository:/home/builder/packages:rw
-      - ./keys:/home/builder/.abuild:rw
-      - ./scripts:/home/builder/scripts:ro
-    working_dir: /home/builder/main/asterisk
-
   builder-14:
     <<: *builder-common
     build:
