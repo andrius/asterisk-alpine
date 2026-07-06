@@ -29,24 +29,26 @@ jobs:
     outputs:
       matrix: ${{ steps.pick.outputs.matrix }}
       publish: ${{ steps.pick.outputs.publish }}
+      tier: ${{ steps.pick.outputs.tier }}
     steps:
       - id: pick
         run: |
           MODERN='["20","22","22-cert","23"]'
           FULL='["23","22","22-cert","20","18","17","16","15"]'
           EVENT='${{ github.event_name }}'
-          TIER='${{ github.event.inputs.tier }}'
+          INPUT_TIER='${{ github.event.inputs.tier }}'
           if [ "$EVENT" = "pull_request" ]; then
-            LINES="$MODERN"; PUBLISH=false
+            LINES="$MODERN"; PUBLISH=false; TIER=modern
           elif [ "$EVENT" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            LINES="$MODERN"; PUBLISH=true
-          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$TIER" = "modern" ]; then
-            LINES="$MODERN"; PUBLISH=true
+            LINES="$MODERN"; PUBLISH=true; TIER=modern
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$INPUT_TIER" = "modern" ]; then
+            LINES="$MODERN"; PUBLISH=true; TIER=modern
           else
-            LINES="$FULL"; PUBLISH=true
+            LINES="$FULL"; PUBLISH=true; TIER=full
           fi
           echo "matrix={\"line\":$LINES}" >> "$GITHUB_OUTPUT"
           echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "tier=$TIER" >> "$GITHUB_OUTPUT"
 
   build:
     needs: setup
@@ -75,7 +77,7 @@ jobs:
 
   frontier:
     needs: setup
-    if: needs.setup.outputs.publish == 'true' && github.event_name != 'push'
+    if: needs.setup.outputs.tier == 'full'
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
