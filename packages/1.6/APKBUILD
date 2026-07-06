@@ -1,6 +1,7 @@
 # Asterisk 1.6.x (EOL ~2012) on Alpine 3.24 / OpenSSL 3.
-# Pre-PJSIP, OpenSSL 1.0 era, oldest version attempted. Even harder than 1.8.
-# Built to document the failure mode.
+# Oldest version attempted. Same fix family as 1.8 (editline configure,
+# OpenSSL 3 methods, __P/bison, AST_INLINE_API, musl). Expected to compile
+# but likely have the same runtime symbol-relocation issue as 1.8.
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
 pkgver=1.6.2.24
@@ -17,11 +18,14 @@ makedepends="
 	autoconf
 	automake
 	alsa-lib-dev
+	bison
 	bsd-compat-headers
 	curl-dev
 	findutils
+	flex
 	freetds-dev
 	jansson-dev
+	linux-headers
 	libedit-dev
 	libpq-dev
 	libtool
@@ -55,7 +59,6 @@ subpackages="
 	"
 _download="https://downloads.asterisk.org/pub/telephony/asterisk/releases"
 source="$_download/asterisk-$pkgver.tar.gz
-	https://dev.alpinelinux.org/~tteras/asterisk-addon-mp3-r201.patch.gz
 	asterisk.initd
 	asterisk.confd
 	asterisk.logrotate
@@ -65,10 +68,63 @@ builddir="$srcdir/asterisk-$pkgver"
 prepare() {
 	default_prepare
 
+	# 1.6's ancient config.sub/config.guess don't recognize alpine-linux-musl.
+	# Replace with the system's modern versions.
+	cp /usr/share/abuild/config.sub /usr/share/abuild/config.guess . 2>/dev/null \
+		|| cp /usr/share/misc/config.sub /usr/share/misc/config.guess . 2>/dev/null \
+		|| true
+
+	# ast_expr2 forward-declares op_* via the __P() K&R macro. The shipped
+	# pre-generated .c/.y files use __P which expands wrong on modern gcc
+	# (implicit int() decls conflict with real struct val * returns). Replace
+	# __P((args)) with (args) in BOTH the .y and the shipped .c/.fl files so
+	# the declarations are plain prototypes. Do NOT regenerate from .y/.fl —
+	# modern bison/flex produce incompatible output for 1.8's old grammars.
+	sed -i 's/__P((\([^)]*\)))/(\1)/g' main/ast_expr2.y main/ast_expr2.c main/ast_expr2.fl main/ast_expr2f.c
+	# musl's glob() lacks GLOB_NOMAGIC and GLOB_BRACE (glibc extensions) used
+	# in res/ael/ael.flex — replace with 0 (no-op flags) in the flex source and
+	# the pre-generated ael_lex.c.
+	sed -i 's/GLOB_NOMAGIC/0/g; s/GLOB_BRACE/0/g' res/ael/ael.flex res/ael/ael_lex.c 2>/dev/null || true
+
+	# OpenSSL 3 removed SSLv2/v3/SSLv23/TLSv1 method constructors. Replace
+	# them with the modern generic TLS_client_method()/TLS_server_method().
+	sed -i \
+		-e 's/SSLv2_client_method()/TLS_client_method()/g' \
+		-e 's/SSLv3_client_method()/TLS_client_method()/g' \
+		-e 's/SSLv23_client_method()/TLS_client_method()/g' \
+		-e 's/TLSv1_client_method()/TLS_client_method()/g' \
+		-e 's/SSLv2_server_method()/TLS_server_method()/g' \
+		-e 's/SSLv3_server_method()/TLS_server_method()/g' \
+		-e 's/SSLv23_server_method()/TLS_server_method()/g' \
+		-e 's/TLSv1_server_method()/TLS_server_method()/g' \
+		main/tcptls.c
+	# OpenSSL 3 made SSL an opaque type — replace direct struct field access
+	# (ssl->server) with SSL_is_server(), and ERR_remove_state (removed) with
+	# ERR_clear_error().
+	sed -i \
+		-e 's/!stream->ssl->server/!SSL_is_server(stream->ssl)/g' \
+		-e 's/ERR_remove_state(0)/ERR_clear_error()/g' \
+		main/tcptls.c
+	# 1.8 ships a static gethostbyname_r that conflicts with musl's declaration.
+	# Rename it internally to avoid the static/non-static clash.
+	sed -i 's/gethostbyname_r/__ast_gethostbyname_r/g' main/utils.c
+	# AST_INLINE_API has 4 variants under #ifdefs. The default (line 49) is
+	# "hdr; extern inline hdr body" — old GNU89 extern-inline semantics that
+	# modern gcc (C99) treats differently, emitting definitions in every TU
+	# → multiple-definition link errors. Replace ALL variants with plain
+	# "static inline hdr body" so each TU gets its own static copy.
+	sed -i 's|#define AST_INLINE_API(hdr, body).*|#define AST_INLINE_API(hdr, body) static inline hdr body|g' include/asterisk/inline_api.h
+
 	# lua header path fix (1.8 expects lua5.1/ prefix)
 	sed -i -e 's:lua5.1/::' pbx/pbx_lua.c
 	# disable iconv (musl)
 	sed -i -e 's/PBX_ICONV=1/PBX_ICONV=0/g' configure.ac
+
+	# 1.8's bundled editline uses autoconf 2.13 whose "compiler works" link
+	# test fails under modern hardening CFLAGS/LDFLAGS (the test main(){return 0;}
+	# links with the full _ASTCFLAGS captured by the main configure). Patch the
+	# editline configure to assume the compiler works rather than run the test.
+	sed -i 's/ac_cv_prog_cc_works=no/ac_cv_prog_cc_works=yes/g' main/editline/configure
 
 	# 1.8 needs autotools re-run (bootstrap.sh)
 	./bootstrap.sh
@@ -102,11 +158,14 @@ build() {
 		--without-x11 \
 		--with-spandsp \
 		--with-ssl \
-		CFLAGS="$CFLAGS"
+		CFLAGS="$CFLAGS -fcommon"
 
 	rm -f menuselect.makeopts
+	# NOTE: do NOT delete the pre-generated ast_expr2.c / ael_lex.c — modern
+	# bison/flex (Alpine 3.24) produce incompatible output for 1.8's old
+	# grammars. Patch the shipped .c/.fl files directly instead (see prepare).
 	make menuselect.makeopts
-	make ASTLDFLAGS="$LDFLAGS"
+	make ASTCFLAGS="$CFLAGS -fcommon"
 }
 
 package() {
@@ -149,3 +208,9 @@ sound_en() {
 	amove var/lib/asterisk/sounds/en
 	chown -R asterisk:asterisk "$subpkgdir"/var/lib/asterisk
 }
+sha512sums="
+0c7942dcb2bc7d87bd75bcd32055fe2360b1fcac6316586ab94495a2e20ca15e6ce3cdc8098ccbb2957e8d1bf5343b581c05d813372bea2d2e5db18dc9758f3e  asterisk-1.6.2.24.tar.gz
+0044c5db468ec8f2385d18d476f89976f6d036448583a4ef8017ce7a6f8f72105337e6b20037ffe47f561d2877fc9c86720aef23ab037df89b36dc140a5924c4  asterisk.initd
+ab6b6f08ff43268cbb1abb7ed7d678949991ba495682a644bbaeb017d6adbff0a43297905fd73ae8db1786a28d5b5904f1bc253209a0e388c8a27f26c6ce14ed  asterisk.confd
+449b5808d90c813c23432274fba47e53227e3a924a55719d2f9e5a90fd2dfb33660a5c85c7e8f11fbb1cd93387e5c68329ed5583f7a64c2451fadad62a9f87dd  asterisk.logrotate
+"

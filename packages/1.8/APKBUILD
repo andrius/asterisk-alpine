@@ -19,9 +19,11 @@ makedepends="
 	autoconf
 	automake
 	alsa-lib-dev
+	bison
 	bsd-compat-headers
 	curl-dev
 	findutils
+	flex
 	freetds-dev
 	jansson-dev
 	libedit-dev
@@ -66,13 +68,13 @@ builddir="$srcdir/asterisk-$pkgver"
 prepare() {
 	default_prepare
 
-	# ast_expr2.y forward-declares op_* via the __P() K&R macro. Modern bison
-	# (2.5, Alpine 3.24) doesn't reliably emit the %{ %} prologue define into
-	# the generated .c, so __P stays undefined and the decls expand to garbage,
-	# making the grammar's calls implicit int() that conflict with the real
-	# definitions. Replace __P((args)) with (args) directly in the source so
-	# the declarations are plain prototypes regardless of macro state.
-	sed -i 's/__P((\([^)]*\)))/(\1)/g' main/ast_expr2.y
+	# ast_expr2 forward-declares op_* via the __P() K&R macro. The shipped
+	# pre-generated .c/.y files use __P which expands wrong on modern gcc
+	# (implicit int() decls conflict with real struct val * returns). Replace
+	# __P((args)) with (args) in BOTH the .y and the shipped .c/.fl files so
+	# the declarations are plain prototypes. Do NOT regenerate from .y/.fl —
+	# modern bison/flex produce incompatible output for 1.8's old grammars.
+	sed -i 's/__P((\([^)]*\)))/(\1)/g' main/ast_expr2.y main/ast_expr2.c main/ast_expr2.fl main/ast_expr2f.c
 	# musl's glob() lacks GLOB_NOMAGIC and GLOB_BRACE (glibc extensions) used
 	# in res/ael/ael.flex — replace with 0 (no-op flags) in the flex source and
 	# the pre-generated ael_lex.c.
@@ -112,16 +114,18 @@ prepare() {
 	# disable iconv (musl)
 	sed -i -e 's/PBX_ICONV=1/PBX_ICONV=0/g' configure.ac
 
+	# 1.8's bundled editline uses autoconf 2.13 whose "compiler works" link
+	# test fails under modern hardening CFLAGS/LDFLAGS (the test main(){return 0;}
+	# links with the full _ASTCFLAGS captured by the main configure). Patch the
+	# editline configure to assume the compiler works rather than run the test.
+	sed -i 's/ac_cv_prog_cc_works=no/ac_cv_prog_cc_works=yes/g' main/editline/configure
+
 	# 1.8 needs autotools re-run (bootstrap.sh)
 	./bootstrap.sh
 }
 
 build() {
 	cd "$builddir"
-	# 1.8's ancient editline sub-configure (autoconf 2.13) link test fails with
-	# ANY -Wl flag ("C compiler cannot create executables"). Build with empty
-	# LDFLAGS — the hardening flags aren't critical for an EOL 1.8 package.
-	export LDFLAGS=""
 	SHA1SUM="$PWD"/build_tools/sha1sum-sh ./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -151,17 +155,11 @@ build() {
 		CFLAGS="$CFLAGS -fcommon"
 
 	rm -f menuselect.makeopts
-	# Force bison/flex to regenerate ast_expr2.c and ael_lex.c from our patched
-	# sources (the .c may be shipped pre-generated in the tarball and make
-	# won't rerun the generators). Keep ast_expr2.h (bison -d may not regen it).
-	rm -f main/ast_expr2.c pbx/ael_lex.c pbx/ael.tab.c
+	# NOTE: do NOT delete the pre-generated ast_expr2.c / ael_lex.c — modern
+	# bison/flex (Alpine 3.24) produce incompatible output for 1.8's old
+	# grammars. Patch the shipped .c/.fl files directly instead (see prepare).
 	make menuselect.makeopts
-	# -fcommon (for gcc 10+ default -fno-common) handles tentative definitions.
-	# 1.8's editline sub-configure (autoconf 2.13) link test fails with the
-	# modern hardening flags captured in _ASTCFLAGS. Override _ASTCFLAGS to
-	# just the include path so the editline configure sees compilable flags,
-	# while ASTCFLAGS still carries -fcommon for the rest of the build.
-	make ASTCFLAGS="$CFLAGS -fcommon" _ASTCFLAGS="-I../../include"
+	make ASTCFLAGS="$CFLAGS -fcommon"
 }
 
 package() {

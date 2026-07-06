@@ -44,18 +44,21 @@ Every row attempted on Alpine 3.24. `result` is the outcome of that attempt.
 | **17** | Standard | 17.9.4 | EOL | ✅ ok | 17 APKs, verified |
 | **16** | Certified LTS | 16.30.1 | EOL 2023 | ✅ ok | 17 APKs, verified |
 | **15** | Standard | 15.7.4 | EOL | ✅ ok | 17 APKs; needed trimmed cdefs patch + no install-headers target |
-| **14** | Standard | 14.7.8 | EOL | ❌ **fail** | **pjproject ABI break**: `struct pj_in_addr` undefined in res_pjsip/pjsip_resolver.c — Asterisk 14 predates the pjproject API change shipped in 3.24 |
-| **13** | LTS | 13.38.3 | EOL 2021 | ❌ fail (confirmed) | fails earlier than 14: bundled db1-ast `HTAB` struct lost `mapp` member |
+| **14** | Standard | 14.7.8 | EOL | ✅ ok | 17 APKs — patched pj_in_addr + srtp GCM keysize |
+| **13** | LTS | 13.38.3 | EOL 2021 | ❌ fail | bundled db1-ast `HTAB` struct lost `mapp` member |
 | **12** | Standard | 12.8.2 | EOL | ❌ fail (expected) | PJSIP era; same or worse |
 | **11** | LTS | 11.25.3 | EOL 2017 | ❌ fail (expected) | pre-PJSIP; OpenSSL 1.0 era |
 | **10** | Standard | 10.12.4 | EOL 2012 | ❌ fail (expected) | pre-PJSIP; OpenSSL 1.0 era |
-| **1.8** | LTS | 1.8.32.3 | EOL 2015 | ❌ fail (expected) | pre-PJSIP; OpenSSL 1.0 era |
+| **1.8** | LTS | 1.8.32.3 | EOL 2015 | ⚠️ partial | **builds + packages** (10 APKs), `asterisk -V` works; **modules fail to load at runtime** (symbol relocation: `ast_module_register` etc. not found). Many fixes: OpenSSL 3 methods, `__P` macro, AST_INLINE_API, editline configure, gethostbyname_r rename |
+| **1.6** | Standard | 1.6.2.24 | EOL 2012 | ❌ fail | compiles most of the tree; fails at bundled `aesopt.h` non-constant initializers (deep C-standards drift in AES crypto tables) |
 
 ### Failure frontier
-**Asterisk 15.7.4 builds; 14.7.8 is the first to fail.** The blocker is not
-OpenSSL (which the OpenSSL-1.1-era versions 15/16 handle fine on 3.24) but a
-**pjproject API break**: modern pjproject (shipped in Alpine 3.24) removed the
-`struct pj_in_addr` type that Asterisk 14's `res_pjsip/pjsip_resolver.c` uses.
+**Asterisk 14.7.8 builds; 13.x is the first to fail at compile time.** The
+blocker is a **pjproject API break** (patchable for 14.x) and db1-ast struct
+changes. **1.8.32.3 compiles and packages** (10 APKs) with extensive patching
+but its **modules can't load at runtime** — symbol relocation fails against the
+core binary on the modern toolchain (`Error relocating app_playback.so:
+ast_module_register: symbol not found`). **1.6 doesn't compile** (AES tables).
 13.x fails even earlier — its bundled db1-ast (Berkeley DB) `HTAB` struct lost
 the `mapp` member. Versions ≤12 are expected to fail the same or worse (older
 PJSIP; ≤11 are pre-PJSIP, OpenSSL 1.0 era). Resurrecting ≤14 on modern Alpine

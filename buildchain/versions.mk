@@ -25,11 +25,9 @@
 15       15.7.4              3.24   target   ok:cdefs-patch-trimmed,no-install-headers
 
 # ---- FAILURE FRONTIER ( pjproject ABI break on modern pjproject ) ----
-14       14.7.8              3.24   target   fail:pjproject-pj_in_addr-undefined-in-res_pjsip/pjsip_resolver.c
+14       14.7.8              3.24   target   ok:pj_in_addr+srtp-gcm-keysize-patches
 13       13.38.3             3.24   target   fail:db1-ast-HTAB-struct-mapp-removed (fails earlier than 14)
 
-# ---- ancient (expect same/earlier failure; not yet attempted) ----
-12       12.8.2              3.24   target   tbd
-11       11.25.3             3.24   target   tbd
-10       10.12.4             3.24   target   tbd
-1.8      1.8.32.3            3.24   target   tbd
+# ---- ancient (1.8 compiles but non-functional; 1.6 doesn't compile) ----
+1.8      1.8.32.3            3.24   target   partial:builds+packages(10 APKs),asterisk-V works,modules fail to load (symbol relocation)
+1.6      1.6.2.24            3.24   target   fail:aesopt.h non-constant initializers (bundled AES crypto tables, deep C-standards drift)
