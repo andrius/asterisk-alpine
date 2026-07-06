@@ -1,8 +1,9 @@
-# Build artifacts
-packages/asterisk/src/
-packages/asterisk/pkg/
+# Build artifacts — per-version src/pkg dirs and all APK output
+packages/*/src/
+packages/*/pkg/
 *.apk
 APKINDEX.tar.gz
+repository/
 
 # Signing keys (NEVER commit these!)
 keys/*
@@ -27,3 +28,7 @@ keys/*
 # OS files
 .DS_Store
 Thumbs.db
+
+# AI secrets - local only, never committed
+.ai-secrets.md
+.ak-secrets.md

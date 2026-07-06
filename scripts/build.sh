@@ -46,6 +46,23 @@ if ! command -v abuild >/dev/null 2>&1; then
     exit 1
 fi
 
+# Update APK cache to access build dependencies
+echo "Updating package indexes..."
+sudo apk update
+
+# Trust our own signing key so abuild can index the repo it just built
+# (abuild -r creates APKINDEX and verifies signatures; without this the
+# builder rejects its own packages with "UNTRUSTED signature").
+PUBKEY="$HOME/.abuild/packages@asterisk-alpine.rsa.pub"
+if [ -f "$PUBKEY" ]; then
+    echo "Installing signing public key into /etc/apk/keys/..."
+    sudo cp "$PUBKEY" /etc/apk/keys/
+else
+    echo "ERROR: public key not found at $PUBKEY"
+    echo "Run 'make init-keys' first to generate signing keys"
+    exit 1
+fi
+
 echo ""
 echo "Building Asterisk packages..."
 echo ""

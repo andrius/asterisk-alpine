@@ -1,0 +1,212 @@
+# Asterisk 1.8.x (LTS, EOL 2015) on Alpine 3.24 / OpenSSL 3.
+# Pre-PJSIP (chan_sip only), OpenSSL 1.0 era. Expected to be HARD — OpenSSL 3
+# removed many APIs 1.8 uses. DAHDI/libpri dropped from aports, disabled.
+# Built to document the failure; "with addons" = the MP3 addon patch + bundled
+# chan_ooh323 (the former asterisk-addons project was merged into 1.8 mainline).
+# Maintainer: Andrius Kairiukstis <k@c0.lt>
+pkgname=asterisk
+pkgver=1.8.32.3
+pkgrel=0
+pkgdesc="Modular Open Source PBX System (1.8 LTS, EOL — with MP3/ooh323 addons)"
+pkgusers="asterisk"
+pkggroups="asterisk"
+url="https://www.asterisk.org/"
+arch="all"
+license="GPL-2.0-only"
+options="!check"
+depends_dev="$pkgname=$pkgver-r$pkgrel"
+makedepends="
+	autoconf
+	automake
+	alsa-lib-dev
+	bsd-compat-headers
+	curl-dev
+	findutils
+	freetds-dev
+	jansson-dev
+	libedit-dev
+	libpq-dev
+	libtool
+	libxml2-dev
+	lua-dev
+	ncurses-dev
+	newt-dev
+	openssl-dev
+	popt-dev
+	spandsp-dev
+	speexdsp-dev
+	sqlite-dev
+	tar
+	tiff-dev
+	unixodbc-dev
+	util-linux-dev
+	zlib-dev
+	"
+# NOTE: dahdi-tools-dev, libpri-dev, libresample removed from aports (3.24).
+install="$pkgname.pre-install $pkgname.pre-upgrade"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-odbc
+	$pkgname-tds
+	$pkgname-fax
+	$pkgname-sample-config:config:noarch
+	$pkgname-sounds-moh:sound_moh:noarch
+	$pkgname-sounds-en:sound_en:noarch
+	$pkgname-openrc
+	"
+_download="https://downloads.asterisk.org/pub/telephony/asterisk/releases"
+source="$_download/asterisk-$pkgver.tar.gz
+	asterisk.initd
+	asterisk.confd
+	asterisk.logrotate
+	"
+builddir="$srcdir/asterisk-$pkgver"
+
+prepare() {
+	default_prepare
+
+	# ast_expr2.y forward-declares op_* via the __P() K&R macro. Modern bison
+	# (2.5, Alpine 3.24) doesn't reliably emit the %{ %} prologue define into
+	# the generated .c, so __P stays undefined and the decls expand to garbage,
+	# making the grammar's calls implicit int() that conflict with the real
+	# definitions. Replace __P((args)) with (args) directly in the source so
+	# the declarations are plain prototypes regardless of macro state.
+	sed -i 's/__P((\([^)]*\)))/(\1)/g' main/ast_expr2.y
+	# musl's glob() lacks GLOB_NOMAGIC and GLOB_BRACE (glibc extensions) used
+	# in res/ael/ael.flex — replace with 0 (no-op flags) in the flex source and
+	# the pre-generated ael_lex.c.
+	sed -i 's/GLOB_NOMAGIC/0/g; s/GLOB_BRACE/0/g' res/ael/ael.flex res/ael/ael_lex.c 2>/dev/null || true
+
+	# OpenSSL 3 removed SSLv2/v3/SSLv23/TLSv1 method constructors. Replace
+	# them with the modern generic TLS_client_method()/TLS_server_method().
+	sed -i \
+		-e 's/SSLv2_client_method()/TLS_client_method()/g' \
+		-e 's/SSLv3_client_method()/TLS_client_method()/g' \
+		-e 's/SSLv23_client_method()/TLS_client_method()/g' \
+		-e 's/TLSv1_client_method()/TLS_client_method()/g' \
+		-e 's/SSLv2_server_method()/TLS_server_method()/g' \
+		-e 's/SSLv3_server_method()/TLS_server_method()/g' \
+		-e 's/SSLv23_server_method()/TLS_server_method()/g' \
+		-e 's/TLSv1_server_method()/TLS_server_method()/g' \
+		main/tcptls.c
+	# OpenSSL 3 made SSL an opaque type — replace direct struct field access
+	# (ssl->server) with SSL_is_server(), and ERR_remove_state (removed) with
+	# ERR_clear_error().
+	sed -i \
+		-e 's/!stream->ssl->server/!SSL_is_server(stream->ssl)/g' \
+		-e 's/ERR_remove_state(0)/ERR_clear_error()/g' \
+		main/tcptls.c
+	# 1.8 ships a static gethostbyname_r that conflicts with musl's declaration.
+	# Rename it internally to avoid the static/non-static clash.
+	sed -i 's/gethostbyname_r/__ast_gethostbyname_r/g' main/utils.c
+	# AST_INLINE_API has 4 variants under #ifdefs. The default (line 49) is
+	# "hdr; extern inline hdr body" — old GNU89 extern-inline semantics that
+	# modern gcc (C99) treats differently, emitting definitions in every TU
+	# → multiple-definition link errors. Replace ALL variants with plain
+	# "static inline hdr body" so each TU gets its own static copy.
+	sed -i 's|#define AST_INLINE_API(hdr, body).*|#define AST_INLINE_API(hdr, body) static inline hdr body|g' include/asterisk/inline_api.h
+
+	# lua header path fix (1.8 expects lua5.1/ prefix)
+	sed -i -e 's:lua5.1/::' pbx/pbx_lua.c
+	# disable iconv (musl)
+	sed -i -e 's/PBX_ICONV=1/PBX_ICONV=0/g' configure.ac
+
+	# 1.8 needs autotools re-run (bootstrap.sh)
+	./bootstrap.sh
+}
+
+build() {
+	cd "$builddir"
+	# 1.8's ancient editline sub-configure (autoconf 2.13) link test fails with
+	# ANY -Wl flag ("C compiler cannot create executables"). Build with empty
+	# LDFLAGS — the hardening flags aren't critical for an EOL 1.8 package.
+	export LDFLAGS=""
+	SHA1SUM="$PWD"/build_tools/sha1sum-sh ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--libdir=/usr/lib \
+		--localstatedir=/var \
+		--disable-xmldoc \
+		--with-gsm=internal \
+		--without-iconv \
+		--with-popt \
+		--with-z \
+		--with-newt \
+		--with-odbc \
+		--with-postgres \
+		--with-tds \
+		--without-dahdi \
+		--without-pri \
+		--without-tonezone \
+		--with-sqlite3 \
+		--with-asound \
+		--without-x11 \
+		--with-spandsp \
+		--with-ssl \
+		CFLAGS="$CFLAGS -fcommon"
+
+	rm -f menuselect.makeopts
+	# Force bison/flex to regenerate ast_expr2.c and ael_lex.c from our patched
+	# sources (the .c may be shipped pre-generated in the tarball and make
+	# won't rerun the generators). Keep ast_expr2.h (bison -d may not regen it).
+	rm -f main/ast_expr2.c pbx/ael_lex.c pbx/ael.tab.c
+	make menuselect.makeopts
+	# -fcommon (for gcc 10+ default -fno-common) handles tentative definitions.
+	# 1.8's editline sub-configure (autoconf 2.13) link test fails with the
+	# modern hardening flags captured in _ASTCFLAGS. Override _ASTCFLAGS to
+	# just the include path so the editline configure sees compilable flags,
+	# while ASTCFLAGS still carries -fcommon for the rest of the build.
+	make ASTCFLAGS="$CFLAGS -fcommon" _ASTCFLAGS="-I../../include"
+}
+
+package() {
+	cd "$builddir"
+	make -j1 DESTDIR="$pkgdir" install
+
+	install -d "$pkgdir"/var/run/asterisk
+	install -m755 -D "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/$pkgname
+	install -m644 -D "$srcdir"/$pkgname.confd "$pkgdir"/etc/conf.d/$pkgname
+	install -m644 -D "$srcdir"/$pkgname.logrotate \
+		"$pkgdir"/etc/logrotate.d/$pkgname
+
+	chown -R asterisk:asterisk "$pkgdir"/var/*/asterisk
+	chown -R asterisk:asterisk "$pkgdir"/etc/asterisk
+}
+
+odbc() { amove usr/lib/asterisk/modules/*odbc*; }
+tds() { amove usr/lib/asterisk/modules/*_tds*; }
+fax() { amove usr/lib/asterisk/modules/*_fax*; }
+
+config() {
+	pkgdesc="Sample configuration files for asterisk"
+	cd "$builddir"
+	mkdir -p "$subpkgdir"/var/lib/asterisk/phoneprov
+	make -j1 samples DESTDIR="$subpkgdir"
+	chown -R asterisk:asterisk "$subpkgdir"/var/*/asterisk
+	chown -R asterisk:asterisk "$subpkgdir"/etc/asterisk
+}
+
+sound_moh() {
+	pkgdesc="Default on-hold music files for asterisk"
+	depends=
+	amove var/lib/asterisk/moh
+	chown -R asterisk:asterisk "$subpkgdir"/var/lib/asterisk
+}
+
+sound_en() {
+	pkgdesc="English sound files for asterisk"
+	depends=
+	amove var/lib/asterisk/sounds/en
+	chown -R asterisk:asterisk "$subpkgdir"/var/lib/asterisk
+}
+sha512sums="
+93ad89018b00888854ac48a38e5d78126cd530c7427dbfc1734bf110869174671c41e2153045b80230f65760e0aa522959d8d5d3b7c65e5a2b3bc10a6dae7412  asterisk-1.8.32.3.tar.gz
+0044c5db468ec8f2385d18d476f89976f6d036448583a4ef8017ce7a6f8f72105337e6b20037ffe47f561d2877fc9c86720aef23ab037df89b36dc140a5924c4  asterisk.initd
+ab6b6f08ff43268cbb1abb7ed7d678949991ba495682a644bbaeb017d6adbff0a43297905fd73ae8db1786a28d5b5904f1bc253209a0e388c8a27f26c6ce14ed  asterisk.confd
+449b5808d90c813c23432274fba47e53227e3a924a55719d2f9e5a90fd2dfb33660a5c85c7e8f11fbb1cd93387e5c68329ed5583f7a64c2451fadad62a9f87dd  asterisk.logrotate
+"

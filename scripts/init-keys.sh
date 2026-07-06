@@ -46,8 +46,10 @@ echo "Setting up abuild config..."
 if [ ! -f "$KEYS_DIR/abuild.conf" ]; then
     cat > "$KEYS_DIR/abuild.conf" <<EOF
 # abuild configuration
-PACKAGER_PRIVKEY="$KEYS_DIR/$KEY_NAME"
-MAINTAINER="Asterisk Alpine Builder <builder@asterisk-alpine>"
+PACKAGER_PRIVKEY="/home/builder/.abuild/$KEY_NAME"
+MAINTAINER="Andrius Kairiukstis <k@c0.lt>"
+# Output to <repo>/v<alpine>/main/<arch>/ so versions coexist by repo path.
+REPODEST="/home/builder/packages/v3.24"
 EOF
     echo "Created $KEYS_DIR/abuild.conf"
 else

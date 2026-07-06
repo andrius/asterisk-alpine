@@ -1,0 +1,236 @@
+# Asterisk Alpine — Multi-Version Build Suite Roadmap
+
+> Build and deliver **multiple Asterisk PBX versions** (1.8, 10, 11, 13, 16, 18, 20, 22, 23)
+> as native Alpine Linux (`apk`) packages, each on the most appropriate Alpine base,
+> from a single reproducible Docker buildchain.
+
+Reference date: 2026-07-05. Research sources are listed at the bottom.
+
+---
+
+## 1. Why this is harder than "just build more versions"
+
+Asterisk is a 25-year-old C codebase that assumes **glibc**. Across the version range we
+target, three independent axes move at once, and each axis has failure modes on Alpine
+(musl) that must be handled per-version:
+
+| Axis | Modern (18/20/22/23) | Legacy (16/13) | Ancient (11/10/1.8) |
+|------|----------------------|--------------------------|----------------------|
+| **libc** | musl patches exist & maintained in aports | musl patches exist but older | glibc-only; musl unaware |
+| **OpenSSL** | 3.x native | upstream wants **1.1.x**; 3.0 may break PJSIP TLS/SRTP | upstream wants **1.0.x** |
+| **PJSIP** | bundled or system `pjproject-dev` | bundled pjproject (`--with-pjproject-bundled`, since 13.8.0) | **none** — chan_sip only (PJSIP arrived in Asterisk 12) |
+| **chan_sip** | dropped from default build in **22** | default | only SIP stack |
+
+**Decision (revised 2026-07-05):** build **every** version on the **single latest Alpine
+(3.24)** — OpenSSL 3, musl, gcc 15. The deliverable is the **failure frontier**: which
+versions survive the modern toolchain and which break, with each break documented. We do
+**not** fall back to period-appropriate bases; an old version that won't build on 3.24 is
+recorded as a failure with a root cause, not silently rescued. This keeps the suite on one
+maintainable base and surfaces real compatibility limits.
+
+---
+
+## 2. The build list (single base: Alpine 3.24)
+
+Every row attempted on Alpine 3.24. `result` is the outcome of that attempt.
+
+| Asterisk | Type | Latest point rel. | EOL | Result on 3.24 | Notes |
+|----------|------|-------------------|-----|----------------|-------|
+| **23** | Standard | 23.4.1 | current | ✅ ok | 19 APKs, verified |
+| **22** | LTS | 22.10.1 | current LTS | ✅ ok | 19 APKs, verified |
+| **22-cert** | Certified LTS | 22.8-cert3 | current certified | ✅ ok | 15 APKs (pgsql/ldap/tds/prometheus subpkgs omitted — modules don't build on libpq 18 / certified 22.8) |
+| **20** | LTS | 20.20.1 | SFO 2026-10 | ✅ ok | 20 APKs, verified |
+| **18** | LTS | 18.26.4 | sec-only → 2026-10 | ✅ ok | 17 APKs (pgsql/ldap/prometheus omitted); DAHDI/libpri dropped from aports, disabled in configure |
+| **17** | Standard | 17.9.4 | EOL | ✅ ok | 17 APKs, verified |
+| **16** | Certified LTS | 16.30.1 | EOL 2023 | ✅ ok | 17 APKs, verified |
+| **15** | Standard | 15.7.4 | EOL | ✅ ok | 17 APKs; needed trimmed cdefs patch + no install-headers target |
+| **14** | Standard | 14.7.8 | EOL | ❌ **fail** | **pjproject ABI break**: `struct pj_in_addr` undefined in res_pjsip/pjsip_resolver.c — Asterisk 14 predates the pjproject API change shipped in 3.24 |
+| **13** | LTS | 13.38.3 | EOL 2021 | ❌ fail (confirmed) | fails earlier than 14: bundled db1-ast `HTAB` struct lost `mapp` member |
+| **12** | Standard | 12.8.2 | EOL | ❌ fail (expected) | PJSIP era; same or worse |
+| **11** | LTS | 11.25.3 | EOL 2017 | ❌ fail (expected) | pre-PJSIP; OpenSSL 1.0 era |
+| **10** | Standard | 10.12.4 | EOL 2012 | ❌ fail (expected) | pre-PJSIP; OpenSSL 1.0 era |
+| **1.8** | LTS | 1.8.32.3 | EOL 2015 | ❌ fail (expected) | pre-PJSIP; OpenSSL 1.0 era |
+
+### Failure frontier
+**Asterisk 15.7.4 builds; 14.7.8 is the first to fail.** The blocker is not
+OpenSSL (which the OpenSSL-1.1-era versions 15/16 handle fine on 3.24) but a
+**pjproject API break**: modern pjproject (shipped in Alpine 3.24) removed the
+`struct pj_in_addr` type that Asterisk 14's `res_pjsip/pjsip_resolver.c` uses.
+13.x fails even earlier — its bundled db1-ast (Berkeley DB) `HTAB` struct lost
+the `mapp` member. Versions ≤12 are expected to fail the same or worse (older
+PJSIP; ≤11 are pre-PJSIP, OpenSSL 1.0 era). Resurrecting ≤14 on modern Alpine
+would require non-trivial backports of the pjproject API adaptation and db1-ast
+struct changes — out of scope for this suite; recorded as the limit.
+| **10** | Standard | 10.12.4 | EOL 2012 | ⬜ tbd | |
+| **1.8** | LTS | 1.8.32.3 | EOL 2015 | ⬜ tbd | |
+
+Architectures: **x86_64** first; aarch64 via buildx + QEMU binfmt later.
+
+### Coexistence strategy
+APK `pkgname` stays `asterisk` for every line. Versions that build coexist by **repo path**:
+`repository/v3.24/main/<arch>/` holds every successfully-built version. (APK treats
+`asterisk-22.10.1-r0` and `asterisk-20.20.1-r0` as two versions of one package — a user
+pins the one they want.) Older EOL lines ship with a clear description suffix.
+
+---
+
+## 3. Goals (deep)
+
+**G1 — Coverage.** Deliver native `apk` packages for all nine Asterisk lines above, each on
+its compatible Alpine base, with the standard subpackage set (core, dev, doc, codecs,
+DB connectors, fax, srtp, sounds, openrc, …) appropriate to that line's era.
+
+**G2 — Reproducibility.** One command (`make build-VERSION` / `make build-all`) builds any
+subset, idempotently, in Docker, with deterministic-enough output (pinned sources, checksums,
+signed index). No "works on my machine."
+
+**G3 — Honesty about EOL.** Every package carries its real security status (secfixes block,
+description suffix). Ancient lines (1.8/10/11) are flagged **best-effort / unsupported — for
+legacy interop only**. The repo UI and docs make the risk visible, not hidden.
+
+**G4 — One entrypoint, many targets.** A single Makefile matrix: `make list`, `make build-20`,
+`make build-all-modern`, `make build-all`, `make test-20`, `make repo-index-all`. Tiers are
+first-class so you can build only the modern set in CI and skip the expensive ancient
+toolchains by default.
+
+**G5 — Smoke-tested, not just compiled.** Each built version is started in a runtime
+container and probed: `asterisk -V`, core shows green, a SIP leg registers (chan_sip where
+present, chan_pjsip on 22+), a channel executes a dialplan `Answer`. Build-green ≠ runs.
+
+**G6 — Trackable & auto-bumpable.** Upstream Asterisk releases are tracked (RSS / GitHub
+release poll); bumping a version is a one-line config change + `make bump-<line>` that
+regenerates checksums. CVE history is maintained in each APKBUILD's `secfixes`.
+
+**G7 — Multi-arch.** x86_64 and aarch64 for the modern tier at minimum; armv7 best-effort.
+
+---
+
+## 4. Milestones
+
+Status legend: ✅ done · 🟡 in progress · ⬜ not started
+
+### M0 — Foundation (current state) ✅
+Single Asterisk **20.11.1-r6** builds on Alpine 3.22 via Docker + abuild, signs packages,
+indexes the repo, runs in a test container. Proves the toolchain end-to-end.
+- Deliverables: `docker/builder.Dockerfile`, `packages/asterisk/APKBUILD`, `scripts/`,
+  `Makefile`, signing keys, repo index, runtime image.
+- **Gap to close:** everything is hardcoded to one version and one Alpine base.
+
+### M1 — Restructure for the matrix ✅
+Turn the single-version repo into a version-parameterized buildchain without breaking M0.
+- ✅ `packages/<line>/` per Asterisk line: `packages/22/`, `packages/23/` added (each
+  self-contained: APKBUILD + patches + initd/confd/logrotate); `packages/asterisk/` kept
+  as the 20.11.1 reference.
+- ✅ `buildchain/versions.mk` — single source of truth mapping
+  `line → {asterisk_ver, alpine_base, openssl, pjproject_mode, tier, status}`.
+- ✅ `docker/builder.Dockerfile` parameterized by `ALPINE_VERSION` build-arg (one template).
+- ✅ Makefile matrix: `build-22`, `build-23`, `build-20`, `build-modern`, `list`, `info`.
+- ✅ Repo layout: `repository/v3.24/main/x86_64/` (REPODEST per Alpine base).
+- **Findings that cost real time (record so we don't relearn):**
+  1. **abuild 3.17 (Alpine 3.24) requires `/etc/apk/cache` to exist** or builddeps fail
+     with `opening from cache ... No such file or directory` / `masked in: cache`. Fixed
+     in the Dockerfile (`mkdir -p /etc/apk/cache`). abuild 3.15 (3.22) did not need this.
+  2. **Maintainer line in APKBUILD must be RFC822-valid** (`# Maintainer: Name <a@b.tld>`);
+     a bare hostname like `<x@asterisk-alpine>` fails `abuild validate` on 3.24.
+  3. **Asterisk 22+ removed `chan_sip` from the source tree entirely** — not just
+     disabled. `--enable chan_sip` in menuselect fails the build with `'chan_sip' not found`.
+     PJSIP (`chan_pjsip`) is the only SIP stack from 22 onward.
+  4. **abuild's `$repo` = parent dir of the APKBUILD.** Mount the APKBUILD tree at
+     `/home/builder/main/asterisk` so `$repo=main` and packages land in `main/<arch>/`.
+     Set `REPODEST=/home/builder/packages/v3.24` to version the output path.
+  5. **The builder must trust its own public key** (`/etc/apk/keys/`) or the index step
+     fails with `UNTRUSTED signature`. `build.sh` copies the pubkey in before `abuild -r`.
+
+### M2 — Modern tier complete 🟡 (in progress)
+Ship **18, 20, 22, 23** on current Alpine (3.22 / 3.24 / edge).
+- ✅ **22.10.1 (LTS)** on Alpine 3.24 — builds, signs, indexes; `asterisk -V` →
+  `Asterisk 22.10.1`, 306 modules, `chan_pjsip` present, 19 subpackages.
+- ✅ **23.4.1 (current)** on Alpine 3.24 — builds, signs, indexes; `asterisk -V` →
+  `Asterisk 23.4.1`, 306 modules. Both versions coexist in one signed repo
+  (`repository/v3.24/main/x86_64/`, 38 APKs total).
+- **Findings (23.x):** `40-asterisk-cdefs.patch` had a second hunk for
+  `utils/db1-ast/include/db.h` which Asterisk 23 removed; the 23.x patch keeps only the
+  `main/ast_expr2.c` hunk. (This is the kind of per-line patch drift to expect.)
+- ⬜ Decide **chan_sip policy**: 22/23 dropped it from the default build. For migration
+  safety, **force-enable chan_sip** on all modern lines via menuselect (the aports 3.22
+  recipe already does this). Document pjsip-only as the future.
+- Per-line `asterisk-opus` codec commit (`_opus_commit`) resolved — the traud/asterisk-opus
+  fork is pinned to asterisk-13.7 historically; newer lines need the matching commit.
+- Smoke tests (G5) wired per line.
+- **Acceptance:** four modern repos build green, each runs `asterisk -V` and a SIP register
+  test in CI.
+
+### M3 — Repository consolidation & signing ⬜
+- Unified index across all built lines; per-line `APKINDEX.tar.gz` signed with one key.
+- Public key + install instructions per line; a top-level "choose your version" doc.
+- `secfixes` blocks populated from the CVE history already in the 20.x APKBUILD, extended.
+- Optional: a static `repo-server` (nginx) profile that serves the whole tree with a
+  generated index page listing versions + EOL badges.
+- **Acceptance:** a clean Alpine VM can `apk add` any one line using only the public key +
+  one repo URL; versions never silently overlap.
+
+### M4 — Walk into the past on Alpine 3.24 ⬜
+Attempt **20 → 18 → 17 → 16 → 15 → 14 → 13 → 12 → 11 → 10 → 1.8** on the single base.
+- Each line: derive APKBUILD from the closest aports recipe (or the sibling project's
+  Debian build), apply the musl patches that still match, run `abuild -r` on 3.24.
+- Record outcome per line: `ok` (built + `asterisk -V` verified) or `fail:<root cause>`.
+- The expected first failure is around **16/13** (OpenSSL 1.1-era upstream vs 3.0) and
+  the ancient tier **11/10/1.8** (OpenSSL 1.0, glibc-only). Each failure is documented,
+  not silently dropped — the failure frontier IS the deliverable for these lines.
+- **Acceptance:** every row in the build list (§2) has a concrete `result`, green or red.
+
+  Resurrect SHAs (aports) for the oldest lines, used to derive the recipe when needed:
+  - 1.8.0 → `bd673b51a11a` (last 1.8.x packaged: 1.8.8.0_rc5)
+  - 10.x → `6e8ed58d7cee` (10.9.0, last 10.x)
+  - 11.x → `2.7-stable` branch (11.25.1) / `372b48e0f1c3` (11.11.1 on master)
+
+### M5 — CI/CD + multi-arch ⬜
+- GitHub Actions (or equivalent) matrix job: `{line} × {x86_64, aarch64}` via buildx/binfmt.
+- Modern tier on every push; legacy/ancient on tag or manual dispatch (they're slow/fragile).
+- Auto-publish repo artifacts; optional signing key from CI secrets.
+- Upstream release poll → issue/PR to bump `versions.mk` (G6).
+
+### M6 — Polish & docs ⬜
+- README rewrite around the build list; per-line pages; version/EOL chooser in repo index.
+- `secfixes`/CVE tracking automated from a feed; security badges.
+- `make bump-<line> <ver>` helper; changelog generation.
+
+---
+
+## 5. Key design decisions (locked unless revisited)
+
+1. **Single Alpine base (latest, 3.24) for every version.** The deliverable is the failure
+   frontier — which versions survive OpenSSL 3 / musl / gcc 15 and which break. No
+   period-appropriate bases; a line that won't build on 3.24 is recorded as a documented
+   failure, not silently rescued. (Revised 2026-07-05 from an earlier multi-base matrix.)
+2. **`pkgname=asterisk` everywhere; versions separated by repo path**, not by package name.
+3. **chan_sip** is force-enabled on lines that still ship it (≤20); on 22+ it's gone from
+   the source tree and cannot be re-enabled.
+4. **Start from upstream aports APKBUILDs** (current + git-history resurrects) rather than
+   hand-rolling — they already carry the musl patches and the subpackage splits we want.
+5. **Ancient tier is explicitly best-effort.** Success is "we tried, here's what blocks us,"
+   not a guarantee. No silent omission.
+6. **Tiered CI:** modern on every push; legacy/ancient on demand. Keeps the feedback loop
+   fast.
+
+## 6. Risks
+
+| Risk | Likelihood | Mitigation |
+|------|-----------|------------|
+| pjproject fails to build on musl for a given line | Med | Start from aports recipe which already works; pin known-good pjproject; bundled mode as fallback. |
+| Asterisk 1.8/10/11 won't compile on any available musl Alpine | High | Timebox; ship recipe + attempt log; consider glibc compat layer only if cheap. |
+| chan_sip removal (22+) breaks user dialplans | Med | Force-enable chan_sip in menuselect (already done in 3.22 recipe). |
+| `asterisk-opus` codec commit doesn't apply to a target line | Med | Per-line `_opus_commit`; drop `-opus` subpackage for lines where it won't apply rather than failing the build. |
+| Subpackage set drift across eras (e.g. `-prometheus` only on 18+) | High | Per-line `subpackages=` in `versions.mk`; don't assume a fixed set. |
+| Multi-arch doubles CI time | Med | Buildx caching; armv7 best-effort only. |
+
+## 7. Sources
+
+- Asterisk versions / EOL: https://docs.asterisk.org/About-the-Project/Asterisk-Versions/
+- Asterisk releases: https://www.asterisk.org/downloads/asterisk/all-asterisk-versions/
+- Alpine aports (canonical): https://gitlab.alpinelinux.org/alpine/aports · mirror https://github.com/alpinelinux/aports
+- Alpine package index: https://pkgs.alpinelinux.org/packages?name=asterisk
+- Bundled pjproject (since 13.8.0): https://docs.asterisk.org/Getting-Started/Installing-Asterisk/Installing-Asterisk-From-Source/Prerequisites/PJSIP-pjproject/
+- OpenSSL 1.0 build break on 20+: https://github.com/asterisk/asterisk/issues/1892
+- musl vs glibc differences: https://wiki.musl-libc.org/functional-differences-from-glibc.html
+- Resurrect SHAs (aports git history): 1.8 `bd673b51a11a`, 10.x `6e8ed58d7cee`, 11.x `2.7-stable` / `372b48e0f1c3`, 22.x bump `0dec20c4fcb9`

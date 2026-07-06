@@ -1,0 +1,16 @@
+Fix build against modern pjproject: drop the `struct` keyword from
+`struct pj_in_addr`. Modern pjproject (shipped in Alpine 3.24) defines
+`pj_in_addr` as `typedef struct in_addr pj_in_addr` inside an `#if 0` block
+(see pj/sock.h), so `struct pj_in_addr` no longer resolves but the
+`pj_in_addr` typedef does. Newer Asterisk (15+) already uses the bare typedef.
+
+--- a/res/res_pjsip/pjsip_resolver.c
++++ b/res/res_pjsip/pjsip_resolver.c
+@@ -327,7 +327,7 @@
+ 					pj_sockaddr_init(pj_AF_INET(), &resolve->addresses.entry[address_count].addr, NULL,
+ 						target->port);
+-					resolve->addresses.entry[address_count].addr.ipv4.sin_addr = *(struct pj_in_addr*)ast_dns_record_get_data(record);
++					resolve->addresses.entry[address_count].addr.ipv4.sin_addr = *(pj_in_addr*)ast_dns_record_get_data(record);
+ 				} else {
+ 					ast_debug(2, "[%p] AAAA record received on target '%s'\n", resolve, ast_dns_query_get_name(query));
+ 					resolve->addresses.entry[address_count].addr_len = sizeof(pj_sockaddr_in6);

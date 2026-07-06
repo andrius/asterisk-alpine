@@ -1,0 +1,19 @@
+Fix build against modern libsrtp2: map the old libsrtp 1.x GCM keysize
+constant names to their libsrtp2 equivalents. Modern libsrtp2 (Alpine 3.24)
+renamed `AES_128_GCM_KEYSIZE_WSALT` -> `SRTP_AES_GCM_128_KEY_LEN_WSALT`.
+
+--- a/res/res_srtp.c
++++ b/res/res_srtp.c
+@@ -44,6 +44,12 @@ ASTERISK_REGISTER_FILE()
+
+ #if HAVE_SRTP_VERSION > 1
+ # include <srtp2/srtp.h>
++# ifndef AES_128_GCM_KEYSIZE_WSALT
++#  define AES_128_GCM_KEYSIZE_WSALT SRTP_AES_GCM_128_KEY_LEN_WSALT
++# endif
++# ifndef AES_256_GCM_KEYSIZE_WSALT
++#  define AES_256_GCM_KEYSIZE_WSALT SRTP_AES_GCM_256_KEY_LEN_WSALT
++# endif
+ # include <srtp2/crypto_types.h>
+ # include "srtp/srtp_compat.h"
+ # include <openssl/rand.h>

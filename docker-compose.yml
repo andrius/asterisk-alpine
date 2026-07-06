@@ -1,31 +1,205 @@
-version: '3.8'
+# Docker Compose for the Asterisk × Alpine build matrix.
+# Each builder-<line> service is the same template (docker/builder.Dockerfile)
+# built with a per-line ALPINE_VERSION build-arg and mounting its own
+# packages/<line>/ APKBUILD tree at /home/builder/main/asterisk (so abuild's
+# $repo resolves to "main" and packages land in packages/main/<arch>/).
+# Outputs land in repository/<alpine>/main/<arch>/ via REPODEST.
+#
+# Add a line: (1) add a stanza here, (2) drop APKBUILD+patches in packages/<line>/,
+# (3) record it in buildchain/versions.mk.
+
+x-builder-common: &builder-common
+  build:
+    context: .
+    dockerfile: docker/builder.Dockerfile
+  command: /bin/sh
+  stdin_open: true
+  tty: true
+
+x-builder-volumes: &builder-volumes
+  - ./repository:/home/builder/packages:rw
+  - ./keys:/home/builder/.abuild:rw
+  - ./scripts:/home/builder/scripts:ro
 
 services:
-  # Package builder service
-  builder:
+  # ---- modern tier (Alpine 3.24, OpenSSL 3) ----
+  builder-23:
+    <<: *builder-common
     build:
       context: .
       dockerfile: docker/builder.Dockerfile
-    container_name: asterisk-builder
+      args:
+        ALPINE_VERSION: "3.24"
     volumes:
-      - ./packages/asterisk:/home/builder/asterisk:rw
+      - ./packages/23:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
       - ./keys:/home/builder/.abuild:rw
-    working_dir: /home/builder/asterisk
-    command: /bin/sh
-    stdin_open: true
-    tty: true
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
 
-  # Asterisk PBX runtime (for testing)
+  builder-22-cert:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/22-cert:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-1.8:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/1.8:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-1.6:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/1.6:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-13:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/13:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-14:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/14:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-15:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/15:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-16:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/16:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-17:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/17:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-18:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/18:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-20:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/20:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  builder-22:
+    <<: *builder-common
+    build:
+      context: .
+      dockerfile: docker/builder.Dockerfile
+      args:
+        ALPINE_VERSION: "3.24"
+    volumes:
+      - ./packages/22:/home/builder/main/asterisk:rw
+      - ./repository:/home/builder/packages:rw
+      - ./keys:/home/builder/.abuild:rw
+      - ./scripts:/home/builder/scripts:ro
+    working_dir: /home/builder/main/asterisk
+
+  # ---- runtime (test) ----
   asterisk:
     build:
       context: .
       dockerfile: docker/asterisk.Dockerfile
-    container_name: asterisk-pbx
     ports:
-      - "5060:5060/udp"  # SIP
-      - "5061:5061/tcp"  # SIP TLS
-      - "10000-10099:10000-10099/udp"  # RTP
+      - "5060:5060/udp"
+      - "5061:5061/tcp"
+      - "10000-10099:10000-10099/udp"
     volumes:
       - asterisk-config:/etc/asterisk
       - asterisk-data:/var/lib/asterisk
@@ -33,18 +207,16 @@ services:
       - asterisk-spool:/var/spool/asterisk
     restart: unless-stopped
     profiles:
-      - runtime  # Only start when explicitly requested
+      - runtime
 
-  # Optional: Simple APK repository server
   repository:
     image: nginx:alpine
-    container_name: asterisk-repo
     ports:
       - "8080:80"
     volumes:
       - ./repository:/usr/share/nginx/html:ro
     profiles:
-      - repository  # Only start when explicitly requested
+      - repository
 
 volumes:
   asterisk-config:

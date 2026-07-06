@@ -1,6 +1,9 @@
 # Alpine Linux package builder for Asterisk
-# This container provides a complete build environment for creating APK packages
-FROM alpine:3.22
+# This container provides a complete build environment for creating APK packages.
+# Parameterized by ALPINE_VERSION so the same template serves every line of the
+# build matrix (modern tier on 3.22/3.24, legacy tier on 3.15/3.9, etc.).
+ARG ALPINE_VERSION=3.22
+FROM alpine:${ALPINE_VERSION}
 
 # Install build tools and dependencies
 RUN apk add --no-cache \
@@ -8,7 +11,11 @@ RUN apk add --no-cache \
     sudo \
     abuild \
     && mkdir -p /var/cache/distfiles \
-    && chmod a+w /var/cache/distfiles
+    && chmod a+w /var/cache/distfiles \
+    # abuild 3.17+ (Alpine 3.24) enables an apk cache mode that requires
+    # /etc/apk/cache to exist, else builddeps fail with
+    # "opening from cache ... No such file or directory" / "masked in: cache".
+    && mkdir -p /etc/apk/cache
 
 # Create builder user (required by abuild - won't build as root)
 RUN adduser -D -G abuild builder \
@@ -27,7 +34,11 @@ RUN mkdir -p ~/.abuild
 
 # Set default package destination
 ENV PACKAGER_PRIVKEY="/home/builder/.abuild/packages@asterisk-alpine.rsa"
-ENV REPODEST="/home/builder/packages"
+# abuild writes packages to $REPODEST/$repo/$arch/ where $repo is the parent
+# dir name of the APKBUILD. We mount the APKBUILD tree at /home/builder/main/
+# asterisk so $repo=main. REPODEST versions the output: <repo>/v3.24/main/<arch>/.
+# Override at runtime for other Alpine bases: -e REPODEST=/home/builder/packages/v3.22
+ENV REPODEST="/home/builder/packages/v3.24"
 
 VOLUME ["/home/builder/asterisk", "/home/builder/packages", "/home/builder/.abuild"]
 
