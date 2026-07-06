@@ -1,6 +1,6 @@
 .PHONY: help list build clean init-keys build-docker build-packages repo-index test-asterisk shell info validate
 .PHONY: build-22 build-23 build-20 build-modern build-all build-full
-.PHONY: build-15 build-16 build-17 build-18 build-22-cert
+.PHONY: build-15 build-16 build-17 build-18 build-22-cert build-14 build-13
 .PHONY: shell-22 shell-23 shell-20 shell-15 shell-16 shell-17 shell-18 shell-22-cert validate-22 validate-23
 .PHONY: test test-all test-22 test-23 test-20 test-18 test-17 test-16 test-15 test-22-cert
 
@@ -87,8 +87,8 @@ shell-23:
 validate-23:
 	docker compose run --rm builder-23 sh -c "cd /home/builder/asterisk && abuild sanitycheck"
 
-# --- Green lines 15-18 + 22-cert on Alpine 3.24 ---
-build-18 build-17 build-16 build-15 build-22-cert: init-keys
+# --- Green lines 13-18 + 20 + 22-cert on Alpine 3.24 ---
+build-20 build-18 build-17 build-16 build-15 build-22-cert build-14 build-13: init-keys
 	@echo "Building Asterisk line $(@:build-%=%) on Alpine 3.24..."
 	@chmod +x scripts/build.sh scripts/build-repo-index.sh
 	docker compose build builder-$(@:build-%=%)
@@ -98,10 +98,6 @@ build-18 build-17 build-16 build-15 build-22-cert: init-keys
 
 shell-18 shell-17 shell-16 shell-15 shell-22-cert:
 	docker compose run --rm builder-$(@:shell-%=%) /bin/sh
-
-# --- Asterisk 20.x on Alpine 3.22 (legacy M0 path) ---
-build-20: build-docker init-keys build-packages
-	@$(MAKE) --no-print-directory repo-index
 
 # --- Tier groupings ---
 build-modern: build-20 build-22 build-22-cert build-23
