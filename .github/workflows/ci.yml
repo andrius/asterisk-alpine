@@ -1,0 +1,94 @@
+name: build-and-publish
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: Tier to build
+        type: choice
+        options: [modern, full]
+        default: full
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+      publish: ${{ steps.pick.outputs.publish }}
+    steps:
+      - id: pick
+        run: |
+          MODERN='["20","22","22-cert","23"]'
+          FULL='["23","22","22-cert","20","18","17","16","15"]'
+          EVENT='${{ github.event_name }}'
+          TIER='${{ github.event.inputs.tier }}'
+          if [ "$EVENT" = "pull_request" ]; then
+            LINES="$MODERN"; PUBLISH=false
+          elif [ "$EVENT" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            LINES="$MODERN"; PUBLISH=true
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$TIER" = "modern" ]; then
+            LINES="$MODERN"; PUBLISH=true
+          else
+            LINES="$FULL"; PUBLISH=true
+          fi
+          echo "matrix={\"line\":$LINES}" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+    env:
+      ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
+      ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Install signing key
+        run: ./scripts/ci-install-signing-key.sh
+      - name: Build ${{ matrix.line }}
+        run: make build-${{ matrix.line }}
+      - name: Smoke test ${{ matrix.line }}
+        run: make test-${{ matrix.line }}
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks-${{ matrix.line }}
+          path: repository/v3.24/main/x86_64/*.apk
+          if-no-files-found: error
+
+  frontier:
+    needs: setup
+    if: needs.setup.outputs.publish == 'true' && github.event_name != 'push'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        line: ["14", "13"]
+    env:
+      ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
+      ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Install signing key
+        run: ./scripts/ci-install-signing-key.sh
+      - name: Attempt build ${{ matrix.line }} (expected to fail)
+        run: make build-${{ matrix.line }}
