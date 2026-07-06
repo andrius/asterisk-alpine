@@ -87,7 +87,7 @@ shell-23:
 validate-23:
 	docker compose run --rm builder-23 sh -c "cd /home/builder/asterisk && abuild sanitycheck"
 
-# --- Green lines 15–18 + 22-cert on Alpine 3.24 ---
+# --- Green lines 15-18 + 22-cert on Alpine 3.24 ---
 build-18 build-17 build-16 build-15 build-22-cert: init-keys
 	@echo "Building Asterisk line $(@:build-%=%) on Alpine 3.24..."
 	@chmod +x scripts/build.sh scripts/build-repo-index.sh
