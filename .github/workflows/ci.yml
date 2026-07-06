@@ -120,7 +120,7 @@ jobs:
       - name: Build + sign the APKINDEX
         run: |
           docker compose build builder-23
-          ALPINE_VERSION=v3.24 docker compose run --rm builder-23 \
+          docker compose run --rm -e ALPINE_VERSION=v3.24 builder-23 \
             sh /home/builder/scripts/build-repo-index.sh
       - name: Assemble Pages site
         run: |
