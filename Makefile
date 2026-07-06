@@ -1,11 +1,12 @@
 .PHONY: help list build clean init-keys build-docker build-packages repo-index test-asterisk shell info validate
-.PHONY: build-22 build-23 build-20 build-modern build-all
-.PHONY: shell-22 shell-23 shell-20 validate-22 validate-23
+.PHONY: build-22 build-23 build-20 build-modern build-all build-full
+.PHONY: build-15 build-16 build-17 build-18 build-22-cert
+.PHONY: shell-22 shell-23 shell-20 shell-15 shell-16 shell-17 shell-18 shell-22-cert validate-22 validate-23
 .PHONY: test test-all test-22 test-23 test-20 test-18 test-17 test-16 test-15 test-22-cert
 
 # Default target
 help:
-	@echo "Asterisk Alpine Linux Buildchain — multi-version matrix"
+	@echo "Asterisk Alpine Linux Buildchain - multi-version matrix"
 	@echo "========================================================="
 	@echo ""
 	@echo "Build a single Asterisk line:"
@@ -86,16 +87,26 @@ shell-23:
 validate-23:
 	docker compose run --rm builder-23 sh -c "cd /home/builder/asterisk && abuild sanitycheck"
 
+# --- Green lines 15–18 + 22-cert on Alpine 3.24 ---
+build-18 build-17 build-16 build-15 build-22-cert: init-keys
+	@echo "Building Asterisk line $(@:build-%=%) on Alpine 3.24..."
+	@chmod +x scripts/build.sh scripts/build-repo-index.sh
+	docker compose build builder-$(@:build-%=%)
+	docker compose run --rm builder-$(@:build-%=%) sh /home/builder/scripts/build.sh
+	@$(MAKE) --no-print-directory repo-index-22
+	@echo "✅ line $(@:build-%=%) packages built"
+
+shell-18 shell-17 shell-16 shell-15 shell-22-cert:
+	docker compose run --rm builder-$(@:shell-%=%) /bin/sh
+
 # --- Asterisk 20.x on Alpine 3.22 (legacy M0 path) ---
 build-20: build-docker init-keys build-packages
 	@$(MAKE) --no-print-directory repo-index
 
 # --- Tier groupings ---
-build-modern: build-22 build-23
-
-# build-all is intentionally explicit so new lines are added deliberately.
-build-all: build-modern
-	@echo "Add build-20 / legacy / ancient targets here as they come online."
+build-modern: build-20 build-22 build-22-cert build-23
+build-full:   build-23 build-22 build-22-cert build-20 build-18 build-17 build-16 build-15
+build-all:    build-full
 
 # ============================================================================
 # Repository indexing (per Alpine base)
@@ -108,7 +119,7 @@ repo-index-22:
 	@echo "✅ v3.24 repo index created"
 
 # ============================================================================
-# Legacy M0 targets (unchanged — single 20.11.1 build on 3.22)
+# Legacy M0 targets (unchanged - single 20.11.1 build on 3.22)
 # ============================================================================
 
 # Build everything (M0 single-version path)
