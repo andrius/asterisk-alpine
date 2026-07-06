@@ -167,21 +167,20 @@ make repo-server
 
 ### Add Repository to Alpine System
 
-1. Copy the public key:
-```bash
-sudo cp keys/packages@asterisk-alpine.rsa.pub /etc/apk/keys/
-```
-
-2. Add repository to `/etc/apk/repositories`:
-```
-http://your-server/v3.22/main
-```
-
-3. Update and install:
-```bash
-apk update
-apk add asterisk asterisk-opus asterisk-prometheus
-```
+1. Trust the repository public key:
+   ```bash
+   wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
+     https://andrius.github.io/asterisk-alpine/packages@asterisk-alpine.rsa.pub
+   ```
+2. Add the repository:
+   ```bash
+   echo "https://andrius.github.io/asterisk-alpine/v3.24/main" >> /etc/apk/repositories
+   ```
+3. Install (pin a major by version, e.g. Asterisk 20):
+   ```bash
+   apk update
+   apk add "asterisk=~20"
+   ```
 
 ### Self-Signed Packages (Testing)
 
