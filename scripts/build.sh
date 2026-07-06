@@ -4,7 +4,7 @@
 
 set -e
 
-ASTERISK_DIR="${ASTERISK_DIR:-/home/builder/asterisk}"
+ASTERISK_DIR="${ASTERISK_DIR:-/home/builder/main/asterisk}"
 PACKAGES_DIR="${PACKAGES_DIR:-/home/builder/packages}"
 ABUILD_CONF="${ABUILD_CONF:-/home/builder/.abuild/abuild.conf}"
 
