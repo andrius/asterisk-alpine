@@ -110,7 +110,7 @@ build-all:    build-full
 
 repo-index-22:
 	@echo "Indexing repository (Alpine 3.24)..."
-	ALPINE_VERSION=v3.24 docker compose run --rm builder-22 \
+	docker compose run --rm -e ALPINE_VERSION=v3.24 builder-22 \
 		sh /home/builder/scripts/build-repo-index.sh
 	@echo "✅ v3.24 repo index created"
 
@@ -138,7 +138,7 @@ build-packages:
 repo-index:
 	@echo "Generating repository index (v3.22)..."
 	@chmod +x scripts/build-repo-index.sh
-	ALPINE_VERSION=v3.22 docker compose run --rm builder-20 \
+	docker compose run --rm -e ALPINE_VERSION=v3.22 builder-20 \
 		sh /home/builder/scripts/build-repo-index.sh
 	@echo "✅ Repository index created"
 
