@@ -64,6 +64,10 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: Install signing key
         run: ./scripts/ci-install-signing-key.sh
+      - name: Make bind-mounted dirs writable by the container builder
+        run: |
+          mkdir -p repository/v3.24/main/x86_64
+          sudo chmod -R a+rwX packages repository keys
       - name: Build ${{ matrix.line }}
         run: make build-${{ matrix.line }}
       - name: Smoke test ${{ matrix.line }}
@@ -92,6 +96,10 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: Install signing key
         run: ./scripts/ci-install-signing-key.sh
+      - name: Make bind-mounted dirs writable by the container builder
+        run: |
+          mkdir -p repository/v3.24/main/x86_64
+          sudo chmod -R a+rwX packages repository keys
       - name: Attempt build ${{ matrix.line }} (expected to fail)
         run: make build-${{ matrix.line }}
 
@@ -119,6 +127,10 @@ jobs:
           pattern: apks-*
           merge-multiple: true
           path: repository/v3.24/main/x86_64
+      - name: Make bind-mounted dirs writable by the container builder
+        run: |
+          mkdir -p repository/v3.24/main/x86_64
+          sudo chmod -R a+rwX repository keys
       - name: Build + sign the APKINDEX
         run: |
           docker compose build builder-23
