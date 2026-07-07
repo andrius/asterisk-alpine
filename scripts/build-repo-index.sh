@@ -66,6 +66,26 @@ else
     echo "Packages can still be installed with --allow-untrusted flag"
 fi
 
+# apk-tools 3.x fetches noarch packages from a <repo>/noarch/ path, not from the
+# arch directory. The x86_64 index already lists them (A:noarch); we only need
+# the package files reachable under noarch/, so mirror them there.
+NOARCH_PATH="$REPO_DIR/$ALPINE_VERSION/main/noarch"
+mkdir -p "$NOARCH_PATH"
+tar -xzOf APKINDEX.tar.gz APKINDEX 2>/dev/null | awk '
+    BEGIN { RS = ""; FS = "\n" }
+    {
+        p = ""; v = ""; a = ""
+        for (i = 1; i <= NF; i++) {
+            if ($i ~ /^P:/) p = substr($i, 3)
+            if ($i ~ /^V:/) v = substr($i, 3)
+            if ($i ~ /^A:/) a = substr($i, 3)
+        }
+        if (a == "noarch") print p "-" v ".apk"
+    }' | while read -r f; do
+        [ -f "$REPO_PATH/$f" ] && cp "$REPO_PATH/$f" "$NOARCH_PATH/"
+    done
+echo "Mirrored $(find "$NOARCH_PATH" -name '*.apk' 2>/dev/null | wc -l) noarch package(s) to $NOARCH_PATH"
+
 echo ""
 echo "==================================="
 echo "Repository index created!"

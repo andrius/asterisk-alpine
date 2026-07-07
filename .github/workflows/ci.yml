@@ -140,6 +140,9 @@ jobs:
         run: |
           mkdir -p _site/v3.24/main
           cp -r repository/v3.24/main/x86_64 _site/v3.24/main/
+          # noarch packages (sample-config, doc, sounds, openrc) - apk 3.x fetches
+          # these from a noarch/ path, so they must be published there too.
+          [ -d repository/v3.24/main/noarch ] && cp -r repository/v3.24/main/noarch _site/v3.24/main/
           cp "keys/${ABUILD_KEY_NAME:-packages@asterisk-alpine.rsa}.pub" _site/
           echo "apk.andrius.mobi" > _site/CNAME
           cat > _site/index.html <<'HTML'
