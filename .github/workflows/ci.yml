@@ -77,7 +77,8 @@ jobs:
 
   build:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.allow_fail }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
@@ -86,22 +87,25 @@ jobs:
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
     steps:
       - uses: actions/checkout@v4
+      - name: Set up QEMU (emulated arches only)
+        if: matrix.platform != ''
+        uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: Install signing key
         run: ./scripts/ci-install-signing-key.sh
       - name: Make bind-mounted dirs writable by the container builder
         run: |
-          mkdir -p repository/v3.24/main/x86_64
+          mkdir -p repository/v3.24/main/${{ matrix.arch }}
           sudo chmod -R a+rwX packages repository keys
-      - name: Build ${{ matrix.line }}
-        run: make build-${{ matrix.line }}
-      - name: Smoke test ${{ matrix.line }}
-        run: make test-${{ matrix.line }}
+      - name: Build ${{ matrix.line }} (${{ matrix.arch }})
+        run: make build-${{ matrix.line }} ARCH=${{ matrix.arch }}
+      - name: Smoke test ${{ matrix.line }} (${{ matrix.arch }})
+        run: make test-${{ matrix.line }} ARCH=${{ matrix.arch }}
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: apks-${{ matrix.line }}
-          path: repository/v3.24/main/x86_64/*.apk
+          name: apks-${{ matrix.arch }}-${{ matrix.line }}
+          path: repository/v3.24/main/${{ matrix.arch }}/*.apk
           if-no-files-found: error
 
   frontier:
