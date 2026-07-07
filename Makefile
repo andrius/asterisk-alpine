@@ -4,6 +4,32 @@
 .PHONY: shell-22 shell-23 shell-20 shell-15 shell-16 shell-17 shell-18 shell-22-cert validate-22 validate-23
 .PHONY: test test-all test-22 test-23 test-20 test-18 test-17 test-16 test-15 test-22-cert
 
+# --- Target architecture (multi-arch builds) --------------------------------
+# ARCH selects which Alpine arch to build/test. abuild inside the container
+# keys off the container's platform, so we drive it via DOCKER_DEFAULT_PLATFORM.
+ARCH ?= x86_64
+ifeq ($(ARCH),aarch64)
+  DOCKER_DEFAULT_PLATFORM := linux/arm64
+else ifeq ($(ARCH),armv7)
+  DOCKER_DEFAULT_PLATFORM := linux/arm/v7
+else ifeq ($(ARCH),armhf)
+  DOCKER_DEFAULT_PLATFORM := linux/arm/v6
+else
+  DOCKER_DEFAULT_PLATFORM := linux/amd64
+endif
+export DOCKER_DEFAULT_PLATFORM
+# Emulated 32-bit arches validate binary + version only; native arches run the
+# full daemon/CLI probe.
+ifneq ($(filter armv7 armhf,$(ARCH)),)
+  SMOKE_LEVEL := version
+else
+  SMOKE_LEVEL := full
+endif
+
+.PHONY: print-arch
+print-arch:
+	@echo "ARCH=$(ARCH) DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) SMOKE_LEVEL=$(SMOKE_LEVEL)"
+
 # Default target
 help:
 	@echo "Asterisk Alpine Linux Buildchain - multi-version matrix"
@@ -119,7 +145,7 @@ build-all:    build-full
 
 repo-index-22:
 	@echo "Indexing repository (Alpine 3.24)..."
-	docker compose run --rm -e ALPINE_VERSION=v3.24 builder-22 \
+	docker compose run --rm -e ALPINE_VERSION=v3.24 -e ARCH=$(ARCH) builder-22 \
 		sh /home/builder/scripts/build-repo-index.sh
 	@echo "✅ v3.24 repo index created"
 
@@ -168,6 +194,7 @@ define _run_test
 		-v $(CURDIR)/repository/v3.24/main:/repo:ro \
 		-v $(CURDIR)/keys:/keys:ro \
 		-e ASTERISK_VERSION=$(1) \
+		-e SMOKE_LEVEL=$(SMOKE_LEVEL) \
 		$(if $(2),-e RELAXED=1,) \
 		asterisk-alpine-test
 endef

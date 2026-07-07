@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'examples/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -33,26 +37,48 @@ jobs:
     steps:
       - id: pick
         run: |
-          MODERN='["20","22","22-cert","23"]'
-          FULL='["23","22","22-cert","20","18","17","16","15"]'
           EVENT='${{ github.event_name }}'
           INPUT_TIER='${{ github.event.inputs.tier }}'
+          REF='${{ github.ref }}'
           if [ "$EVENT" = "pull_request" ]; then
-            LINES="$MODERN"; PUBLISH=false; TIER=modern
-          elif [ "$EVENT" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            LINES="$MODERN"; PUBLISH=true; TIER=modern
+            TIER=modern; PUBLISH=false
+          elif [ "$EVENT" = "push" ] && [ "$REF" = "refs/heads/main" ]; then
+            TIER=modern; PUBLISH=true
           elif [ "$EVENT" = "workflow_dispatch" ] && [ "$INPUT_TIER" = "modern" ]; then
-            LINES="$MODERN"; PUBLISH=true; TIER=modern
+            TIER=modern; PUBLISH=true
           else
-            LINES="$FULL"; PUBLISH=true; TIER=full
+            TIER=full; PUBLISH=true
           fi
-          echo "matrix={\"line\":$LINES}" >> "$GITHUB_OUTPUT"
+
+          if [ "$TIER" = "modern" ]; then
+            LINES='["20","22","22-cert","23"]'
+          else
+            LINES='["23","22","22-cert","20","18","17","16","15"]'
+          fi
+
+          # Native arches build every tier line.
+          NATIVE=$(echo "$LINES" | jq -c '[ .[] as $l |
+            {line:$l, arch:"x86_64",  runner:"ubuntu-latest",    platform:"", allow_fail:false},
+            {line:$l, arch:"aarch64", runner:"ubuntu-24.04-arm", platform:"", allow_fail:false} ]')
+
+          # 32-bit arches: full tier only, lines 22/23/22-cert, best-effort.
+          if [ "$TIER" = "full" ]; then
+            ARM32=$(jq -cn '[ ["22","23","22-cert"][] as $l |
+              {line:$l, arch:"armv7", runner:"ubuntu-latest", platform:"linux/arm/v7", allow_fail:true},
+              {line:$l, arch:"armhf", runner:"ubuntu-latest", platform:"linux/arm/v6", allow_fail:true} ]')
+          else
+            ARM32='[]'
+          fi
+
+          INCLUDE=$(jq -cn --argjson a "$NATIVE" --argjson b "$ARM32" '$a + $b')
+          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
           echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
           echo "tier=$TIER" >> "$GITHUB_OUTPUT"
 
   build:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.allow_fail }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
@@ -61,22 +87,25 @@ jobs:
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
     steps:
       - uses: actions/checkout@v4
+      - name: Set up QEMU (emulated arches only)
+        if: matrix.platform != ''
+        uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: Install signing key
         run: ./scripts/ci-install-signing-key.sh
       - name: Make bind-mounted dirs writable by the container builder
         run: |
-          mkdir -p repository/v3.24/main/x86_64
+          mkdir -p repository/v3.24/main/${{ matrix.arch }}
           sudo chmod -R a+rwX packages repository keys
-      - name: Build ${{ matrix.line }}
-        run: make build-${{ matrix.line }}
-      - name: Smoke test ${{ matrix.line }}
-        run: make test-${{ matrix.line }}
+      - name: Build ${{ matrix.line }} (${{ matrix.arch }})
+        run: make build-${{ matrix.line }} ARCH=${{ matrix.arch }}
+      - name: Smoke test ${{ matrix.line }} (${{ matrix.arch }})
+        run: make test-${{ matrix.line }} ARCH=${{ matrix.arch }}
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: apks-${{ matrix.line }}
-          path: repository/v3.24/main/x86_64/*.apk
+          name: apks-${{ matrix.arch }}-${{ matrix.line }}
+          path: repository/v3.24/main/${{ matrix.arch }}/*.apk
           if-no-files-found: error
 
   frontier:
@@ -125,35 +154,95 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: apks-*
-          merge-multiple: true
-          path: repository/v3.24/main/x86_64
-      - name: Make bind-mounted dirs writable by the container builder
+          path: _artifacts
+      - name: Distribute APKs into per-arch repo dirs
         run: |
-          mkdir -p repository/v3.24/main/x86_64
-          sudo chmod -R a+rwX repository keys
-      - name: Build + sign the APKINDEX
+          for d in _artifacts/apks-*; do
+            [ -d "$d" ] || continue
+            arch=$(basename "$d" | cut -d- -f2)
+            mkdir -p "repository/v3.24/main/$arch"
+            cp "$d"/*.apk "repository/v3.24/main/$arch/"
+          done
+          echo "arches present: $(ls repository/v3.24/main)"
+      - name: Seed from the live repo (merge - do not wipe existing arches/lines)
+        run: |
+          BASE="https://apk.andrius.mobi/v3.24/main"
+          seeded=0
+          for arch in x86_64 aarch64 armv7 armhf; do
+            code=$(curl -sSL --retry 3 --retry-delay 3 --retry-connrefused \
+              -o /tmp/idx.tar.gz -w '%{http_code}' "$BASE/$arch/APKINDEX.tar.gz" || echo 000)
+            if [ "$code" = "404" ]; then
+              echo "no live index for $arch (first publish or arch absent); skipping"
+              continue
+            elif [ "$code" != "200" ]; then
+              echo "ERROR: live index for $arch returned HTTP $code; aborting to avoid wiping existing packages"
+              exit 1
+            fi
+            mkdir -p "repository/v3.24/main/$arch"
+            # Each package the live index lists: filename = P-V.apk. A:noarch
+            # packages live under the shared noarch/ path on the live site; all
+            # others under the arch dir. Download any this run did not rebuild
+            # into the local arch dir (abuild's natural layout).
+            tar -xzOf /tmp/idx.tar.gz APKINDEX 2>/dev/null | awk '
+              BEGIN { RS = ""; FS = "\n" }
+              {
+                p = ""; v = ""; a = ""
+                for (i = 1; i <= NF; i++) {
+                  if ($i ~ /^P:/) p = substr($i, 3)
+                  if ($i ~ /^V:/) v = substr($i, 3)
+                  if ($i ~ /^A:/) a = substr($i, 3)
+                }
+                if (p != "") print a "\t" p "-" v ".apk"
+              }' > /tmp/seed-list.txt
+            while IFS="$(printf '\t')" read -r a f; do
+              [ -n "$f" ] || continue
+              [ -f "repository/v3.24/main/$arch/$f" ] && continue
+              if [ "$a" = "noarch" ]; then src="$BASE/noarch/$f"; else src="$BASE/$arch/$f"; fi
+              if curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused "$src" -o "repository/v3.24/main/$arch/$f"; then
+                seeded=$((seeded + 1))
+              else
+                rm -f "repository/v3.24/main/$arch/$f"
+                echo "  skip $arch/$f (fetch failed)"
+              fi
+            done < /tmp/seed-list.txt
+            echo "seeded from live $arch index"
+          done
+          echo "total seeded files: $seeded"
+      - name: Make bind-mounted dirs writable by the container builder
+        run: sudo chmod -R a+rwX repository keys
+      - name: Build + sign per-arch APKINDEX (shared canonical noarch)
         run: |
           docker compose build builder-23
-          docker compose run --rm -e ALPINE_VERSION=v3.24 builder-23 \
-            sh /home/builder/scripts/build-repo-index.sh
+          for arch in x86_64 aarch64 armv7 armhf; do
+            [ -d "repository/v3.24/main/$arch" ] || continue
+            # x86_64 is indexed first and defines the canonical noarch set
+            # (build-repo-index.sh mirrors A:noarch files into main/noarch/).
+            # Overlay those canonical files into each later arch dir so every
+            # index references identical noarch checksums; apk serves them from
+            # the shared noarch/ path.
+            if [ -d repository/v3.24/main/noarch ]; then
+              cp -f repository/v3.24/main/noarch/*.apk "repository/v3.24/main/$arch/" 2>/dev/null || true
+            fi
+            docker compose run --rm -e ALPINE_VERSION=v3.24 -e ARCH="$arch" builder-23 \
+              sh /home/builder/scripts/build-repo-index.sh
+          done
       - name: Assemble Pages site
         run: |
           mkdir -p _site/v3.24/main
-          cp -r repository/v3.24/main/x86_64 _site/v3.24/main/
-          # noarch packages (sample-config, doc, sounds, openrc) - apk 3.x fetches
-          # these from a noarch/ path, so they must be published there too.
-          [ -d repository/v3.24/main/noarch ] && cp -r repository/v3.24/main/noarch _site/v3.24/main/
+          for arch in x86_64 aarch64 armv7 armhf noarch; do
+            [ -d "repository/v3.24/main/$arch" ] && cp -r "repository/v3.24/main/$arch" _site/v3.24/main/
+          done
           cp "keys/${ABUILD_KEY_NAME:-packages@asterisk-alpine.rsa}.pub" _site/
           echo "apk.andrius.mobi" > _site/CNAME
           cat > _site/index.html <<'HTML'
           <!doctype html><meta charset=utf-8>
           <title>Asterisk Alpine APK repository</title>
           <h1>Asterisk Alpine APK repository</h1>
-          <p>Add the key and repo, then <code>apk add asterisk</code>:</p>
+          <p>Signed apk packages for x86_64, aarch64, armv7, armhf. Add the key and repo:</p>
           <pre>wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
             https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub
-          echo "https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
-          apk update &amp;&amp; apk add asterisk</pre>
+          echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
+          apk add "asterisk@andrius-asterisk=~23"</pre>
           HTML
       - uses: actions/upload-pages-artifact@v3
         with:

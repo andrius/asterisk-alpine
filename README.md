@@ -10,6 +10,10 @@ Available lines (each built and smoke-tested in CI): **23** (current), **22**
 (LTS), **22-cert** (certified), **20**, plus **18 / 17 / 16 / 15**. The LTS
 `22.10` and certified `22.8` builds coexist in the same repository.
 
+**Architectures:** x86_64, aarch64 (Apple Silicon / RPi 4-5 / Graviton), and
+armv7 / armhf (32-bit Raspberry Pi). The same repo line works everywhere - apk
+resolves packages for the running architecture automatically.
+
 ## Install
 
 ```sh
@@ -18,19 +22,19 @@ wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
   https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub
 
 # 2. Add the repo under a pin tag (see "Avoiding conflicts" below)
-echo "@astalpine https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
+echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
 
 # 3. Install the line you want, pinned to this repo
-apk add "asterisk@astalpine=~23"      # 23.x  current
-apk add "asterisk@astalpine=~22"      # 22.x  LTS (22.10)
-apk add "asterisk@astalpine=~22.8"    # 22.8  certified
-apk add "asterisk@astalpine=~20"      # 20.x
+apk add "asterisk@andrius-asterisk=~23"      # 23.x  current
+apk add "asterisk@andrius-asterisk=~22"      # 22.x  LTS (22.10)
+apk add "asterisk@andrius-asterisk=~22.8"    # 22.8  certified
+apk add "asterisk@andrius-asterisk=~20"      # 20.x
 ```
 
 ### Avoiding conflicts with Alpine's asterisk
 
 Alpine ships its **own** `asterisk` (`22.9` in the always-enabled `main` repo),
-so the package names overlap. The `@astalpine` **pin tag** above makes apk take
+so the package names overlap. The `@andrius-asterisk` **pin tag** above makes apk take
 asterisk from this repository only, and stops `apk upgrade` from silently
 swapping it for Alpine's build. The `=~22.8` version match additionally isolates
 the certified line from the LTS and from Alpine's `22.9`.
@@ -50,8 +54,8 @@ A minimal image is just:
 ```dockerfile
 FROM alpine:3.24
 ADD https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub /etc/apk/keys/
-RUN echo "@astalpine https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories \
- && apk add --no-cache "asterisk@astalpine=~23" "asterisk-sample-config@astalpine=~23"
+RUN echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories \
+ && apk add --no-cache "asterisk@andrius-asterisk=~23" "asterisk-sample-config@andrius-asterisk=~23"
 CMD ["asterisk", "-fvvv"]
 ```
 
