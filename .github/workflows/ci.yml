@@ -154,35 +154,51 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: apks-*
-          merge-multiple: true
-          path: repository/v3.24/main/x86_64
-      - name: Make bind-mounted dirs writable by the container builder
+          path: _artifacts
+      - name: Distribute APKs into per-arch repo dirs
         run: |
-          mkdir -p repository/v3.24/main/x86_64
-          sudo chmod -R a+rwX repository keys
-      - name: Build + sign the APKINDEX
+          for d in _artifacts/apks-*; do
+            [ -d "$d" ] || continue
+            arch=$(basename "$d" | cut -d- -f2)
+            mkdir -p "repository/v3.24/main/$arch"
+            cp "$d"/*.apk "repository/v3.24/main/$arch/"
+          done
+          echo "arches present: $(ls repository/v3.24/main)"
+      - name: Make bind-mounted dirs writable by the container builder
+        run: sudo chmod -R a+rwX repository keys
+      - name: Build + sign per-arch APKINDEX (shared canonical noarch)
         run: |
           docker compose build builder-23
-          docker compose run --rm -e ALPINE_VERSION=v3.24 builder-23 \
-            sh /home/builder/scripts/build-repo-index.sh
+          for arch in x86_64 aarch64 armv7 armhf; do
+            [ -d "repository/v3.24/main/$arch" ] || continue
+            # x86_64 is indexed first and defines the canonical noarch set
+            # (build-repo-index.sh mirrors A:noarch files into main/noarch/).
+            # Overlay those canonical files into each later arch dir so every
+            # index references identical noarch checksums; apk serves them from
+            # the shared noarch/ path.
+            if [ -d repository/v3.24/main/noarch ]; then
+              cp -f repository/v3.24/main/noarch/*.apk "repository/v3.24/main/$arch/" 2>/dev/null || true
+            fi
+            docker compose run --rm -e ALPINE_VERSION=v3.24 -e ARCH="$arch" builder-23 \
+              sh /home/builder/scripts/build-repo-index.sh
+          done
       - name: Assemble Pages site
         run: |
           mkdir -p _site/v3.24/main
-          cp -r repository/v3.24/main/x86_64 _site/v3.24/main/
-          # noarch packages (sample-config, doc, sounds, openrc) - apk 3.x fetches
-          # these from a noarch/ path, so they must be published there too.
-          [ -d repository/v3.24/main/noarch ] && cp -r repository/v3.24/main/noarch _site/v3.24/main/
+          for arch in x86_64 aarch64 armv7 armhf noarch; do
+            [ -d "repository/v3.24/main/$arch" ] && cp -r "repository/v3.24/main/$arch" _site/v3.24/main/
+          done
           cp "keys/${ABUILD_KEY_NAME:-packages@asterisk-alpine.rsa}.pub" _site/
           echo "apk.andrius.mobi" > _site/CNAME
           cat > _site/index.html <<'HTML'
           <!doctype html><meta charset=utf-8>
           <title>Asterisk Alpine APK repository</title>
           <h1>Asterisk Alpine APK repository</h1>
-          <p>Add the key and repo, then <code>apk add asterisk</code>:</p>
+          <p>Signed apk packages for x86_64, aarch64, armv7, armhf. Add the key and repo:</p>
           <pre>wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
             https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub
-          echo "https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
-          apk update &amp;&amp; apk add asterisk</pre>
+          echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
+          apk add "asterisk@andrius-asterisk=~23"</pre>
           HTML
       - uses: actions/upload-pages-artifact@v3
         with:
