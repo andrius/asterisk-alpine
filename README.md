@@ -170,11 +170,11 @@ make repo-server
 1. Trust the repository public key:
    ```bash
    wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
-     https://andrius.github.io/asterisk-alpine/packages@asterisk-alpine.rsa.pub
+     https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub
    ```
 2. Add the repository:
    ```bash
-   echo "https://andrius.github.io/asterisk-alpine/v3.24/main" >> /etc/apk/repositories
+   echo "https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
    ```
 3. Install (pin a major by version, e.g. Asterisk 20):
    ```bash

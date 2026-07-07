@@ -141,14 +141,15 @@ jobs:
           mkdir -p _site/v3.24/main
           cp -r repository/v3.24/main/x86_64 _site/v3.24/main/
           cp "keys/${ABUILD_KEY_NAME:-packages@asterisk-alpine.rsa}.pub" _site/
+          echo "apk.andrius.mobi" > _site/CNAME
           cat > _site/index.html <<'HTML'
           <!doctype html><meta charset=utf-8>
           <title>Asterisk Alpine APK repository</title>
           <h1>Asterisk Alpine APK repository</h1>
           <p>Add the key and repo, then <code>apk add asterisk</code>:</p>
           <pre>wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
-            https://andrius.github.io/asterisk-alpine/packages@asterisk-alpine.rsa.pub
-          echo "https://andrius.github.io/asterisk-alpine/v3.24/main" >> /etc/apk/repositories
+            https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub
+          echo "https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
           apk update &amp;&amp; apk add asterisk</pre>
           HTML
       - uses: actions/upload-pages-artifact@v3
