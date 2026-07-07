@@ -1,7 +1,7 @@
-# versions.mk — the Asterisk build list for the suite.
+# versions.mk - the Asterisk build list for the suite.
 #
 # STRATEGY: ONE Alpine base (3.24, latest) for every Asterisk version. The
-# deliverable is the failure frontier — which versions survive the modern
+# deliverable is the failure frontier - which versions survive the modern
 # toolchain (OpenSSL 3, musl, gcc 15) and which break, with the break
 # documented per line. No period-appropriate bases; old versions are attempted
 # on 3.24 and recorded as build-or-break.
@@ -31,3 +31,9 @@
 # ---- ancient (1.8 compiles but non-functional; 1.6 doesn't compile) ----
 1.8      1.8.32.3            3.24   target   partial:builds+packages(10 APKs),asterisk-V works,modules fail to load (symbol relocation)
 1.6      1.6.2.24            3.24   target   fail:aesopt.h non-constant initializers (bundled AES crypto tables, deep C-standards drift)
+
+# ---- ARCHITECTURE COVERAGE (see docs/multi-arch-buildchain-design.md) ----
+# native  x86_64, aarch64 : every target line (modern on PR/push, full on tag)
+# 32-bit  armv7,  armhf   : 22, 23 (targets) + 22-cert (best-effort), full tier
+#                           only, continue-on-error. Line 20 and ancient lines
+#                           are x86_64/aarch64 only.
