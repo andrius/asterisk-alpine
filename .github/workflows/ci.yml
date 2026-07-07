@@ -164,6 +164,45 @@ jobs:
             cp "$d"/*.apk "repository/v3.24/main/$arch/"
           done
           echo "arches present: $(ls repository/v3.24/main)"
+      - name: Seed from the live repo (merge - do not wipe existing arches/lines)
+        run: |
+          BASE="https://apk.andrius.mobi/v3.24/main"
+          seeded=0
+          for arch in x86_64 aarch64 armv7 armhf; do
+            if ! curl -fsSL "$BASE/$arch/APKINDEX.tar.gz" -o /tmp/idx.tar.gz; then
+              echo "no live index for $arch (first publish or arch absent); skipping"
+              continue
+            fi
+            mkdir -p "repository/v3.24/main/$arch"
+            # Each package the live index lists: filename = P-V.apk. A:noarch
+            # packages live under the shared noarch/ path on the live site; all
+            # others under the arch dir. Download any this run did not rebuild
+            # into the local arch dir (abuild's natural layout).
+            tar -xzOf /tmp/idx.tar.gz APKINDEX 2>/dev/null | awk '
+              BEGIN { RS = ""; FS = "\n" }
+              {
+                p = ""; v = ""; a = ""
+                for (i = 1; i <= NF; i++) {
+                  if ($i ~ /^P:/) p = substr($i, 3)
+                  if ($i ~ /^V:/) v = substr($i, 3)
+                  if ($i ~ /^A:/) a = substr($i, 3)
+                }
+                if (p != "") print a "\t" p "-" v ".apk"
+              }' > /tmp/seed-list.txt
+            while IFS="$(printf '\t')" read -r a f; do
+              [ -n "$f" ] || continue
+              [ -f "repository/v3.24/main/$arch/$f" ] && continue
+              if [ "$a" = "noarch" ]; then src="$BASE/noarch/$f"; else src="$BASE/$arch/$f"; fi
+              if curl -fsSL "$src" -o "repository/v3.24/main/$arch/$f"; then
+                seeded=$((seeded + 1))
+              else
+                rm -f "repository/v3.24/main/$arch/$f"
+                echo "  skip $arch/$f (fetch failed)"
+              fi
+            done < /tmp/seed-list.txt
+            echo "seeded from live $arch index"
+          done
+          echo "total seeded files: $seeded"
       - name: Make bind-mounted dirs writable by the container builder
         run: sudo chmod -R a+rwX repository keys
       - name: Build + sign per-arch APKINDEX (shared canonical noarch)
