@@ -169,9 +169,14 @@ jobs:
           BASE="https://apk.andrius.mobi/v3.24/main"
           seeded=0
           for arch in x86_64 aarch64 armv7 armhf; do
-            if ! curl -fsSL "$BASE/$arch/APKINDEX.tar.gz" -o /tmp/idx.tar.gz; then
+            code=$(curl -sSL --retry 3 --retry-delay 3 --retry-connrefused \
+              -o /tmp/idx.tar.gz -w '%{http_code}' "$BASE/$arch/APKINDEX.tar.gz" || echo 000)
+            if [ "$code" = "404" ]; then
               echo "no live index for $arch (first publish or arch absent); skipping"
               continue
+            elif [ "$code" != "200" ]; then
+              echo "ERROR: live index for $arch returned HTTP $code; aborting to avoid wiping existing packages"
+              exit 1
             fi
             mkdir -p "repository/v3.24/main/$arch"
             # Each package the live index lists: filename = P-V.apk. A:noarch
@@ -193,7 +198,7 @@ jobs:
               [ -n "$f" ] || continue
               [ -f "repository/v3.24/main/$arch/$f" ] && continue
               if [ "$a" = "noarch" ]; then src="$BASE/noarch/$f"; else src="$BASE/$arch/$f"; fi
-              if curl -fsSL "$src" -o "repository/v3.24/main/$arch/$f"; then
+              if curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused "$src" -o "repository/v3.24/main/$arch/$f"; then
                 seeded=$((seeded + 1))
               else
                 rm -f "repository/v3.24/main/$arch/$f"
