@@ -136,11 +136,21 @@ Unchanged in spirit (lines 14, 13). Native arches only.
 ### `publish` job
 
 - Download every `apks-*` artifact into its `repository/v3.24/main/<arch>/`.
+- **Seed from the live repo (merge, do not wipe).** `deploy-pages` replaces the
+  whole site, and a modern main-push only builds x86_64/aarch64 modern lines - so
+  without merging it would erase armv7/armhf and full-tier-only lines a prior tag
+  published. Before indexing, seed the local tree from the live site: for each
+  arch, fetch `<arch>/APKINDEX.tar.gz`, parse `P`/`V`/`A`, and download any
+  package this run did not rebuild (`A:noarch` from the shared `noarch/`, else the
+  arch dir). A definitive 404 means the arch is not yet published (skip); any
+  other fetch error aborts the publish rather than deploying a partial site that
+  would wipe existing packages. The deployed site is therefore the union of old +
+  new.
 - Run `build-repo-index.sh` **once per arch** (each produces that arch's signed
   `APKINDEX`); `build-repo-index.sh` already takes `ARCH`, so this is a loop.
 - Mirror `noarch/` once (from the x86_64 tree).
 - Assemble `_site` with all arch dirs + `noarch/` + pubkey + `CNAME` + index.html.
-- Deploy to Pages (unchanged mechanism).
+- Deploy to Pages.
 
 ## Testing
 
