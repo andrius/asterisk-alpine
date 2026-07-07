@@ -1,5 +1,5 @@
 #!/bin/sh
-# test-run.sh — install a built asterisk from our repo, start it, verify.
+# test-run.sh - install a built asterisk from our repo, start it, verify.
 # Runs as the test container's entrypoint. Exits 0 on success, non-zero on fail.
 #
 # Mounts expected at run time:
@@ -23,24 +23,14 @@ echo "[1/5] installing public key..."
 install -m644 /keys/packages@asterisk-alpine.rsa.pub /etc/apk/keys/ 2>/dev/null \
     || cp /keys/packages@asterisk-alpine.rsa.pub /etc/apk/keys/
 
-# 2. Install asterisk from our repo, plus the sample-config (a noarch
-# subpackage) by direct file path — apk 3.0 resolves noarch packages from a
-# noarch/ subdir, but our build lays everything down in x86_64/, so repo
-# resolution of noarch packages fails with "package mentioned in index not
-# found". Direct .apk install sidesteps the index lookup.
+# 2. Install asterisk + sample-config from our repo. Both resolve from the repo
+# now that noarch packages are published under noarch/ (apk 3.x fetches noarch
+# packages from <repo>/noarch/). No arch-specific paths needed.
 echo "[2/5] installing asterisk ${VER} (with sample-config) from local repo..."
-SAMPLE_APK="/repo/x86_64/asterisk-sample-config-${VER}-r0.apk"
-apk add --no-cache --repository /repo "asterisk=${VER}-r0" \
+apk add --no-cache --repository /repo "asterisk=${VER}-r0" "asterisk-sample-config=${VER}-r0" \
     >/tmp/apk-install.log 2>&1 || {
-    echo "FAIL: apk add asterisk failed:"; tail -25 /tmp/apk-install.log; exit 2
+    echo "FAIL: apk add failed:"; tail -25 /tmp/apk-install.log; exit 2
 }
-if [ -f "$SAMPLE_APK" ]; then
-    apk add --no-cache "$SAMPLE_APK" >>/tmp/apk-install.log 2>&1 || {
-        echo "FAIL: apk add sample-config failed:"; tail -15 /tmp/apk-install.log; exit 2
-    }
-else
-    echo "WARN: sample-config for ${VER} not found at ${SAMPLE_APK} (continuing without)"
-fi
 echo "  installed: $(apk info asterisk 2>/dev/null | head -1)"
 
 # 3. Verify the version reports correctly.
@@ -58,6 +48,13 @@ case "$REPORTED" in
         ;;
 esac
 
+# Emulated (QEMU) arch builds validate the binary + reported version only; the
+# full daemon/CLI probe is unreliable under user-mode emulation.
+if [ "${SMOKE_LEVEL:-full}" = "version" ]; then
+    echo "PASS (version-only): asterisk ${VER} installed and reports version"
+    exit 0
+fi
+
 # 4. Start asterisk as a daemon (it forks and returns), wait for the CLI.
 echo "[4/5] starting asterisk and waiting up to ${TIMEOUT}s for readiness..."
 mkdir -p /var/run/asterisk /var/log/asterisk
@@ -71,7 +68,7 @@ mkdir -p /var/lib/asterisk/keys /var/lib/asterisk/sounds /var/lib/asterisk/moh \
 chown -R asterisk:asterisk /var/run/asterisk /var/log/asterisk /etc/asterisk /var/lib/asterisk /var/spool/asterisk 2>/dev/null || true
 
 # Start as daemon (default: forks to background, returns immediately). Run as
-# root — asterisk's libcap privilege-drop fails in default containers; tests
+# root - asterisk's libcap privilege-drop fails in default containers; tests
 # only need it to start and respond on the CLI socket.
 asterisk >/tmp/asterisk-start.log 2>&1 || {
     echo "FAIL: asterisk failed to start:"; tail -20 /tmp/asterisk-start.log; exit 4
@@ -134,7 +131,7 @@ else
     # res_hep is on disk but won't load. On some older lines (e.g. 15.x built
     # against a modern toolchain) the module compiles but fails symbol
     # relocation against the core. That's a known build limitation, not a test
-    # failure of "does asterisk run" — report it as a warning, not hard-fail.
+    # failure of "does asterisk run" - report it as a warning, not hard-fail.
     echo "  WARN res_hep on disk but did not load (symbol relocation / build limitation)"
     asterisk -rx 'module load res_hep.so' 2>&1 | sed 's/^/        /' | head -2
 fi
