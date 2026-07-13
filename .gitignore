@@ -32,3 +32,4 @@ Thumbs.db
 # AI secrets - local only, never committed
 .ai-secrets.md
 .ak-secrets.md
+.ai-local.md
