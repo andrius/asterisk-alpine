@@ -28,9 +28,9 @@
 14       14.7.8              3.24   target   ok:pj_in_addr+srtp-gcm-keysize-patches
 13       13.38.3             3.24   target   fail:db1-ast-HTAB-struct-mapp-removed (fails earlier than 14)
 
-# ---- ancient (1.8 compiles but non-functional; 1.6 doesn't compile) ----
-1.8      1.8.32.3            3.24   target   partial:builds+packages(10 APKs),asterisk-V works,modules fail to load (symbol relocation)
-1.6      1.6.2.24            3.24   target   fail:aesopt.h non-constant initializers (bundled AES crypto tables, deep C-standards drift)
+# ---- ancient (now GREEN: recursive-mutex + dlclose patches fixed the musl module-load deadlock) ----
+1.8      1.8.32.3            3.24   target   ok:185 modules load,chan_sip works (recursive mutex static init + dlclose loop fix)
+1.6      1.6.2.24            3.24   target   ok:168 modules load,chan_sip works (recursive mutex static init + dlclose loop fix + bundled-AES stub)
 
 # ---- ARCHITECTURE COVERAGE (see docs/multi-arch-buildchain-design.md) ----
 # native  x86_64, aarch64 : every target line (modern on PR/push, full on tag)

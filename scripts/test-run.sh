@@ -120,20 +120,28 @@ probe "module count>0"    "module show"           "modules"  || FAIL=1
 hep_on_disk=$(ls /usr/lib/asterisk/modules/res_hep*.so 2>/dev/null | wc -l)
 if [ "$hep_on_disk" -ge 3 ]; then
     echo "  OK   HEP modules on disk (${hep_on_disk}: res_hep, res_hep_pjsip, res_hep_rtcp)"
+elif [ "$hep_on_disk" -eq 0 ]; then
+    # HEP (HEPv3/HOMER) modules were added in Asterisk 11 and became a full
+    # 3-module set (res_hep + res_hep_pjsip + res_hep_rtcp) only later. Ancient
+    # lines (1.6, 1.8) predate this - no res_hep*.so ship, so skip the probe.
+    echo "  SKIP HEP modules (not present in this Asterisk version)"
 else
     echo "  MISS HEP modules on disk (expected 3, got ${hep_on_disk})"
     ls /usr/lib/asterisk/modules/res_hep*.so 2>&1 | sed 's/^/        /'
     FAIL=1
 fi
-if asterisk -rx 'module load res_hep.so' 2>&1 | grep -qi 'Loaded res_hep.so'; then
-    echo "  OK   res_hep loads (HEPv3 API subsystem functional)"
-else
-    # res_hep is on disk but won't load. On some older lines (e.g. 15.x built
-    # against a modern toolchain) the module compiles but fails symbol
-    # relocation against the core. That's a known build limitation, not a test
-    # failure of "does asterisk run" - report it as a warning, not hard-fail.
-    echo "  WARN res_hep on disk but did not load (symbol relocation / build limitation)"
-    asterisk -rx 'module load res_hep.so' 2>&1 | sed 's/^/        /' | head -2
+# Only probe res_hep loadability if the module actually ships (Asterisk 11+).
+if [ "$hep_on_disk" -gt 0 ]; then
+    if asterisk -rx 'module load res_hep.so' 2>&1 | grep -qi 'Loaded res_hep.so'; then
+        echo "  OK   res_hep loads (HEPv3 API subsystem functional)"
+    else
+        # res_hep is on disk but won't load. On some older lines (e.g. 15.x built
+        # against a modern toolchain) the module compiles but fails symbol
+        # relocation against the core. That's a known build limitation, not a test
+        # failure of "does asterisk run" - report it as a warning, not hard-fail.
+        echo "  WARN res_hep on disk but did not load (symbol relocation / build limitation)"
+        asterisk -rx 'module load res_hep.so' 2>&1 | sed 's/^/        /' | head -2
+    fi
 fi
 
 # SIP stack: chan_pjsip (22+) or chan_sip (<=20).

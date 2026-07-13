@@ -1,7 +1,13 @@
-# Asterisk 1.6.x (EOL ~2012) on Alpine 3.24 / OpenSSL 3.
-# Oldest version attempted. Same fix family as 1.8 (editline configure,
-# OpenSSL 3 methods, __P/bison, AST_INLINE_API, musl). Expected to compile
-# but likely have the same runtime symbol-relocation issue as 1.8.
+# Asterisk 1.6.x (EOL ~2012) on Alpine 3.24 / OpenSSL 3 - FULLY FUNCTIONAL.
+# Same fix family as 1.8 (editline configure, OpenSSL 3 methods, __P/bison,
+# AST_INLINE_API, musl) plus: bundled AES .c files stubbed (HAVE_CRYPTO dead
+# code), GLOB_NOMAGIC/GLOB_BRACE in compat.h, res_close() stub, and the two
+# fixes that make loadable modules work on musl: a recursive-mutex static
+# initializer (musl lacks PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP; without it
+# the loader deadlocks when ast_module_register re-locks module_list during
+# dlopen's constructor phase) and replacing the "while(!dlclose(lib))" probe-
+# unload loops with a single dlclose (musl spins there). Result: 168 modules
+# load, chan_sip answers, daemon reaches ready.
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
 pkgver=1.6.2.24
@@ -12,7 +18,7 @@ pkggroups="asterisk"
 url="https://www.asterisk.org/"
 arch="all"
 license="GPL-2.0-only"
-options="!check"
+options="!check !strip"
 depends_dev="$pkgname=$pkgver-r$pkgrel"
 makedepends="
 	autoconf
@@ -78,13 +84,14 @@ prepare() {
 	# pre-generated .c/.y files use __P which expands wrong on modern gcc
 	# (implicit int() decls conflict with real struct val * returns). Replace
 	# __P((args)) with (args) in BOTH the .y and the shipped .c/.fl files so
-	# the declarations are plain prototypes. Do NOT regenerate from .y/.fl —
+	# the declarations are plain prototypes. Do NOT regenerate from .y/.fl - 
 	# modern bison/flex produce incompatible output for 1.8's old grammars.
 	sed -i 's/__P((\([^)]*\)))/(\1)/g' main/ast_expr2.y main/ast_expr2.c main/ast_expr2.fl main/ast_expr2f.c
 	# musl's glob() lacks GLOB_NOMAGIC and GLOB_BRACE (glibc extensions) used
-	# in res/ael/ael.flex — replace with 0 (no-op flags) in the flex source and
-	# the pre-generated ael_lex.c.
-	sed -i 's/GLOB_NOMAGIC/0/g; s/GLOB_BRACE/0/g' res/ael/ael.flex res/ael/ael_lex.c 2>/dev/null || true
+	# in res/ael/ael.flex, the pre-generated ael_lex.c, and include/asterisk/compat.h
+	# (MY_GLOB_FLAGS macro used by config.c). Replace with 0 (no-op flags).
+	sed -i 's/GLOB_NOMAGIC/0/g; s/GLOB_BRACE/0/g' \
+		res/ael/ael.flex res/ael/ael_lex.c include/asterisk/compat.h 2>/dev/null || true
 
 	# OpenSSL 3 removed SSLv2/v3/SSLv23/TLSv1 method constructors. Replace
 	# them with the modern generic TLS_client_method()/TLS_server_method().
@@ -98,7 +105,7 @@ prepare() {
 		-e 's/SSLv23_server_method()/TLS_server_method()/g' \
 		-e 's/TLSv1_server_method()/TLS_server_method()/g' \
 		main/tcptls.c
-	# OpenSSL 3 made SSL an opaque type — replace direct struct field access
+	# OpenSSL 3 made SSL an opaque type - replace direct struct field access
 	# (ssl->server) with SSL_is_server(), and ERR_remove_state (removed) with
 	# ERR_clear_error().
 	sed -i \
@@ -108,8 +115,12 @@ prepare() {
 	# 1.8 ships a static gethostbyname_r that conflicts with musl's declaration.
 	# Rename it internally to avoid the static/non-static clash.
 	sed -i 's/gethostbyname_r/__ast_gethostbyname_r/g' main/utils.c
+	# musl's resolver doesn't expose res_close() (glibc extension). dns.c calls
+	# it after a DNS lookup to reset resolver state; musl doesn't need it.
+	# Stub the call to a no-op.
+	sed -i 's/res_close();/\/* res_close() - not in musl *\//' main/dns.c
 	# AST_INLINE_API has 4 variants under #ifdefs. The default (line 49) is
-	# "hdr; extern inline hdr body" — old GNU89 extern-inline semantics that
+	# "hdr; extern inline hdr body" - old GNU89 extern-inline semantics that
 	# modern gcc (C99) treats differently, emitting definitions in every TU
 	# → multiple-definition link errors. Replace ALL variants with plain
 	# "static inline hdr body" so each TU gets its own static copy.
@@ -126,12 +137,41 @@ prepare() {
 	# editline configure to assume the compiler works rather than run the test.
 	sed -i 's/ac_cv_prog_cc_works=no/ac_cv_prog_cc_works=yes/g' main/editline/configure
 
-	# 1.8 needs autotools re-run (bootstrap.sh)
+	# Bundled AES (aescrypt.c/aeskey.c/aestab.c) is dead code: HAVE_CRYPTO is
+	# defined (system OpenSSL provides AES) and the sources guard their entire
+	# bodies with #ifndef HAVE_CRYPTO. But aestab.c does not include autoconfig.h,
+	# so HAVE_CRYPTO is invisible to that translation unit and GCC 15 trips on
+	# the bundled tables (byte-order #error, non-constant initializers). Stub the
+	# .c files to empty - the objects link as no-ops; libcrypto provides AES.
+	: > main/aescrypt.c
+	: > main/aeskey.c
+	: > main/aestab.c
+
+	# Asterisk REQUIRES recursive mutexes (see include/asterisk/lock.h).
+	# musl lacks the glibc-specific PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP, so
+	# configure leaves statically-initialized mutexes as NORMAL. The module
+	# loader then deadlocks: load_modules holds the module_list mutex across
+	# dlopen, and the module constructor's ast_module_register() re-locks it.
+	# musl encodes the mutex type in the first int of pthread_mutex_t
+	# (PTHREAD_MUTEX_RECURSIVE == 1); provide a static recursive initializer.
+	sed -i 's|#define PTHREAD_MUTEX_INIT_VALUE[[:space:]]*PTHREAD_MUTEX_INITIALIZER|#define PTHREAD_MUTEX_INIT_VALUE { { PTHREAD_MUTEX_RECURSIVE } }|' include/asterisk/lock.h
+
+	# load_dynamic_module probes each module with a quiet dlopen, then unloads
+	# via "while (!dlclose(lib));" to fully release a refcounted handle. On musl
+	# this loops indefinitely (dlclose on the probe handle never terminates the
+	# loop). Replace the loops with a single dlclose call.
+	sed -i 's/while (!dlclose(lib));/dlclose(lib);/' main/loader.c
+
+	# 1.6 needs autotools re-run (bootstrap.sh)
 	./bootstrap.sh
 }
 
 build() {
 	cd "$builddir"
+	# 1.6's ancient editline sub-configure (autoconf 2.13) link test fails with
+	# ANY -Wl flag ("C compiler cannot create executables"). Build with empty
+	# LDFLAGS - the hardening flags aren't critical for an EOL 1.6 package.
+	export LDFLAGS=""
 	SHA1SUM="$PWD"/build_tools/sha1sum-sh ./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -161,12 +201,19 @@ build() {
 		CFLAGS="$CFLAGS -fcommon"
 
 	rm -f menuselect.makeopts
-	# NOTE: do NOT delete the pre-generated ast_expr2.c / ael_lex.c — modern
-	# bison/flex (Alpine 3.24) produce incompatible output for 1.8's old
+	# NOTE: do NOT delete the pre-generated ast_expr2.c / ael_lex.c - modern
+	# bison/flex (Alpine 3.24) produce incompatible output for 1.6's old
 	# grammars. Patch the shipped .c/.fl files directly instead (see prepare).
 	make menuselect.makeopts
+	# musl dlopen: modules can't resolve the core binary's symbols unless the
+	# binary is linked with --export-dynamic. Unlike 1.8 (which has an
+	# unconditional --version-script,asterisk.exports line), 1.6 only adds
+	# --export-dynamic inside a LOADABLE_MODULES conditional that isn't
+	# reliably set. Append it unconditionally right before the link rule.
+	sed -i '/^$(MAIN_TGT):/i ASTLINK += -Wl,--export-dynamic' main/Makefile
 	make ASTCFLAGS="$CFLAGS -fcommon"
 }
+
 
 package() {
 	cd "$builddir"

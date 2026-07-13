@@ -1,13 +1,18 @@
-# Asterisk 1.8.x (LTS, EOL 2015) on Alpine 3.24 / OpenSSL 3.
-# Pre-PJSIP (chan_sip only), OpenSSL 1.0 era. Expected to be HARD — OpenSSL 3
-# removed many APIs 1.8 uses. DAHDI/libpri dropped from aports, disabled.
-# Built to document the failure; "with addons" = the MP3 addon patch + bundled
-# chan_ooh323 (the former asterisk-addons project was merged into 1.8 mainline).
+# Asterisk 1.8.x (LTS, EOL 2015) on Alpine 3.24 / OpenSSL 3 - FULLY FUNCTIONAL.
+# Pre-PJSIP (chan_sip only), OpenSSL 1.0 era. OpenSSL 3 removed many APIs
+# 1.8 uses (patched). DAHDI/libpri dropped from aports, disabled.
+# Loadable modules work on musl via two fixes: a recursive-mutex static
+# initializer (musl lacks PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP; without it
+# the loader deadlocks when ast_module_register re-locks module_list during
+# dlopen's constructor phase) and replacing the "while(!dlclose(lib))" probe-
+# unload loops with a single dlclose (musl spins there). Result: 185 modules
+# load, chan_sip answers, daemon reaches ready. "with addons" = MP3/ooh323
+# are in 1.8 mainline (the former asterisk-addons project was merged in).
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
 pkgver=1.8.32.3
 pkgrel=0
-pkgdesc="Modular Open Source PBX System (1.8 LTS, EOL — with MP3/ooh323 addons)"
+pkgdesc="Modular Open Source PBX System (1.8 LTS, EOL - with MP3/ooh323 addons)"
 pkgusers="asterisk"
 pkggroups="asterisk"
 url="https://www.asterisk.org/"
@@ -70,11 +75,11 @@ prepare() {
 	# pre-generated .c/.y files use __P which expands wrong on modern gcc
 	# (implicit int() decls conflict with real struct val * returns). Replace
 	# __P((args)) with (args) in BOTH the .y and the shipped .c/.fl files so
-	# the declarations are plain prototypes. Do NOT regenerate from .y/.fl —
+	# the declarations are plain prototypes. Do NOT regenerate from .y/.fl - 
 	# modern bison/flex produce incompatible output for 1.8's old grammars.
 	sed -i 's/__P((\([^)]*\)))/(\1)/g' main/ast_expr2.y main/ast_expr2.c main/ast_expr2.fl main/ast_expr2f.c
 	# musl's glob() lacks GLOB_NOMAGIC and GLOB_BRACE (glibc extensions) used
-	# in res/ael/ael.flex — replace with 0 (no-op flags) in the flex source and
+	# in res/ael/ael.flex - replace with 0 (no-op flags) in the flex source and
 	# the pre-generated ael_lex.c.
 	sed -i 's/GLOB_NOMAGIC/0/g; s/GLOB_BRACE/0/g' res/ael/ael.flex res/ael/ael_lex.c 2>/dev/null || true
 
@@ -90,7 +95,7 @@ prepare() {
 		-e 's/SSLv23_server_method()/TLS_server_method()/g' \
 		-e 's/TLSv1_server_method()/TLS_server_method()/g' \
 		main/tcptls.c
-	# OpenSSL 3 made SSL an opaque type — replace direct struct field access
+	# OpenSSL 3 made SSL an opaque type - replace direct struct field access
 	# (ssl->server) with SSL_is_server(), and ERR_remove_state (removed) with
 	# ERR_clear_error().
 	sed -i \
@@ -101,7 +106,7 @@ prepare() {
 	# Rename it internally to avoid the static/non-static clash.
 	sed -i 's/gethostbyname_r/__ast_gethostbyname_r/g' main/utils.c
 	# AST_INLINE_API has 4 variants under #ifdefs. The default (line 49) is
-	# "hdr; extern inline hdr body" — old GNU89 extern-inline semantics that
+	# "hdr; extern inline hdr body" - old GNU89 extern-inline semantics that
 	# modern gcc (C99) treats differently, emitting definitions in every TU
 	# → multiple-definition link errors. Replace ALL variants with plain
 	# "static inline hdr body" so each TU gets its own static copy.
@@ -128,6 +133,20 @@ global: *;
 };
 EOF
 
+	# Asterisk REQUIRES recursive mutexes (see include/asterisk/lock.h).
+	# musl lacks the glibc-specific PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP, so
+	# configure leaves statically-initialized mutexes as NORMAL. The module
+	# loader then deadlocks: load_modules holds the module_list mutex across
+	# dlopen, and the module constructor's ast_module_register() re-locks it.
+	# musl encodes the mutex type in the first int of pthread_mutex_t
+	# (PTHREAD_MUTEX_RECURSIVE == 1); provide a static recursive initializer.
+	sed -i 's|#define PTHREAD_MUTEX_INIT_VALUE[[:space:]]*PTHREAD_MUTEX_INITIALIZER|#define PTHREAD_MUTEX_INIT_VALUE { { PTHREAD_MUTEX_RECURSIVE } }|' include/asterisk/lock.h
+
+	# load_dynamic_module probes each module with a quiet dlopen, then unloads
+	# via "while (!dlclose(lib));" to fully release a refcounted handle. On musl
+	# this loops indefinitely. Replace the loops with a single dlclose call.
+	sed -i 's/while (!dlclose(lib));/dlclose(lib);/' main/loader.c
+
 	# 1.8 needs autotools re-run (bootstrap.sh)
 	./bootstrap.sh
 }
@@ -136,7 +155,7 @@ build() {
 	cd "$builddir"
 	# 1.8's ancient editline sub-configure (autoconf 2.13) link test fails with
 	# ANY -Wl flag ("C compiler cannot create executables"). Build with empty
-	# LDFLAGS — the hardening flags aren't critical for an EOL 1.8 package.
+	# LDFLAGS - the hardening flags aren't critical for an EOL 1.8 package.
 	export LDFLAGS=""
 	SHA1SUM="$PWD"/build_tools/sha1sum-sh ./configure \
 		--build=$CBUILD \
@@ -167,7 +186,7 @@ build() {
 		CFLAGS="$CFLAGS -fcommon"
 
 	rm -f menuselect.makeopts
-	# NOTE: do NOT delete the pre-generated ast_expr2.c / ael_lex.c — modern
+	# NOTE: do NOT delete the pre-generated ast_expr2.c / ael_lex.c - modern
 	# bison/flex (Alpine 3.24) produce incompatible output for 1.8's old
 	# grammars. Patch the shipped .c/.fl files directly instead (see prepare).
 	make menuselect.makeopts

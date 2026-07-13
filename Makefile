@@ -1,8 +1,8 @@
 .PHONY: help list build clean init-keys build-docker build-packages repo-index test-asterisk shell info validate
 .PHONY: build-22 build-23 build-20 build-modern build-all build-full
-.PHONY: build-15 build-16 build-17 build-18 build-22-cert build-14 build-13
-.PHONY: shell-22 shell-23 shell-20 shell-15 shell-16 shell-17 shell-18 shell-22-cert validate-22 validate-23
-.PHONY: test test-all test-22 test-23 test-20 test-18 test-17 test-16 test-15 test-22-cert
+.PHONY: build-15 build-16 build-17 build-18 build-22-cert build-14 build-13 build-1.8 build-1.6
+.PHONY: shell-22 shell-23 shell-20 shell-15 shell-16 shell-17 shell-18 shell-22-cert shell-1.8 shell-1.6 validate-22 validate-23
+.PHONY: test test-all test-22 test-23 test-20 test-18 test-17 test-16 test-15 test-22-cert test-1.8 test-1.6
 
 # --- Target architecture (multi-arch builds) --------------------------------
 # ARCH selects which Alpine arch to build/test. abuild inside the container
@@ -123,7 +123,7 @@ validate-23:
 	docker compose run --rm builder-23 sh -c "cd /home/builder/asterisk && abuild sanitycheck"
 
 # --- Green lines 13-18 + 20 + 22-cert on Alpine 3.24 ---
-build-20 build-18 build-17 build-16 build-15 build-22-cert build-14 build-13: init-keys
+build-20 build-18 build-17 build-16 build-15 build-22-cert build-14 build-13 build-1.8 build-1.6: init-keys
 	@echo "Building Asterisk line $(@:build-%=%) on Alpine 3.24..."
 	@chmod +x scripts/build.sh scripts/build-repo-index.sh
 	docker compose build builder-$(@:build-%=%)
@@ -131,7 +131,7 @@ build-20 build-18 build-17 build-16 build-15 build-22-cert build-14 build-13: in
 	@$(MAKE) --no-print-directory repo-index-22
 	@echo "✅ line $(@:build-%=%) packages built"
 
-shell-18 shell-17 shell-16 shell-15 shell-22-cert:
+shell-18 shell-17 shell-16 shell-15 shell-22-cert shell-1.8 shell-1.6:
 	docker compose run --rm builder-$(@:shell-%=%) /bin/sh
 
 # --- Tier groupings ---
@@ -204,7 +204,7 @@ test: test-image
 
 test-all: test-image
 	@echo "Running tests against all green versions..."
-	@$(MAKE) --no-print-directory test-23 test-22 test-22-cert test-20 test-18 test-17 test-16 test-15
+	@$(MAKE) --no-print-directory test-23 test-22 test-22-cert test-20 test-18 test-17 test-16 test-15 test-1.8 test-1.6
 
 test-23:       test-image ; $(call _run_test,23.4.1)
 test-22:       test-image ; $(call _run_test,22.10.1)
@@ -214,6 +214,8 @@ test-18:       test-image ; $(call _run_test,18.26.4)
 test-17:       test-image ; $(call _run_test,17.9.4)
 test-16:       test-image ; $(call _run_test,16.30.1)
 test-15:       test-image ; $(call _run_test,15.7.4)
+test-1.8:       test-image ; $(call _run_test,1.8.32.3,relaxed)
+test-1.6:       test-image ; $(call _run_test,1.6.2.24,relaxed)
 
 # Legacy runtime container (M0)
 test-asterisk:
