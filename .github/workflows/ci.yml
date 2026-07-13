@@ -81,7 +81,12 @@ jobs:
             GITLINES='[]'
           fi
 
-          INCLUDE=$(jq -cn --argjson a "$NATIVE" --argjson b "$ARM32" --argjson c "$GITLINES" '$a + $b + $c')
+          # Ancient lines (1.6, 1.8): x86_64 only - not validated on aarch64.
+          # Regular pipeline (every push/PR + full tier), gating.
+          ANCIENT=$(jq -cn '[ ["1.8","1.6"][] as $l |
+            {line:$l, arch:"x86_64", runner:"ubuntu-latest", platform:"", allow_fail:false} ]')
+
+          INCLUDE=$(jq -cn --argjson a "$NATIVE" --argjson b "$ARM32" --argjson c "$GITLINES" --argjson d "$ANCIENT" '$a + $b + $c + $d')
           echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
           echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
           echo "tier=$TIER" >> "$GITHUB_OUTPUT"

@@ -37,5 +37,5 @@ git      24.0.0_git20260713  3.24   target   ok:master-snapshot-ae85ad74
 # native  x86_64, aarch64 : every target line (modern on PR/push, full on tag)
 # 32-bit  armv7,  armhf   : 22, 23 (targets) + 22-cert (best-effort), full tier
 #                           only, continue-on-error. Line 20 is x86_64/aarch64.
-#                           Ancient lines (1.6, 1.8) are x86_64 only - they are
-#                           not validated on aarch64 and are not in the CI matrix.
+#                           Ancient lines (1.6, 1.8) are x86_64 only - not
+#                           validated on aarch64; built in CI on x86_64 (regular).
