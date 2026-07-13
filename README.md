@@ -7,8 +7,10 @@ repository at **[apk.andrius.mobi](https://apk.andrius.mobi/)**.
 [![Hosted By: Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=for-the-badge)](https://cloudsmith.com)
 
 Available lines (each built and smoke-tested in CI): **23** (current), **22**
-(LTS), **22-cert** (certified), **20**, plus **18 / 17 / 16 / 15**. The LTS
-`22.10` and certified `22.8` builds coexist in the same repository.
+(LTS), **22-cert** (certified), **20**, plus **18 / 16** (LTS, EOL) and the
+**git** line (master snapshot, best-effort). The LTS `22.10` and certified
+`22.8` builds coexist in the same repository. Ancient **1.6** and **1.8**
+build too (musl module-load patched) for archaeology.
 
 **Architectures:** x86_64, aarch64 (Apple Silicon / RPi 4-5 / Graviton), and
 armv7 / armhf (32-bit Raspberry Pi). The same repo line works everywhere - apk

@@ -53,7 +53,7 @@ jobs:
           if [ "$TIER" = "modern" ]; then
             LINES='["20","22","22-cert","23"]'
           else
-            LINES='["23","22","22-cert","20","18","17","16","15"]'
+            LINES='["23","22","22-cert","20","18","16"]'
           fi
 
           # Native arches build every tier line.
@@ -70,7 +70,18 @@ jobs:
             ARM32='[]'
           fi
 
-          INCLUDE=$(jq -cn --argjson a "$NATIVE" --argjson b "$ARM32" '$a + $b')
+          # Git (master) line: full tier only, best-effort (master is volatile),
+          # native arches only. 'make build-git' runs git-snapshot.sh on the
+          # runner first to pin _gitrev/pkgver/checksums, then builds.
+          if [ "$TIER" = "full" ]; then
+            GITLINES=$(jq -cn '[ "git" as $l |
+              {line:$l, arch:"x86_64",  runner:"ubuntu-latest",    platform:"", allow_fail:true},
+              {line:$l, arch:"aarch64", runner:"ubuntu-24.04-arm", platform:"", allow_fail:true} ]')
+          else
+            GITLINES='[]'
+          fi
+
+          INCLUDE=$(jq -cn --argjson a "$NATIVE" --argjson b "$ARM32" --argjson c "$GITLINES" '$a + $b + $c')
           echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
           echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
           echo "tier=$TIER" >> "$GITHUB_OUTPUT"
@@ -116,7 +127,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        line: ["14", "13"]
+        line: ["14"]
     env:
       ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}

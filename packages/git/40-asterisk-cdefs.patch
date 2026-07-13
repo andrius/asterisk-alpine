@@ -1,6 +1,5 @@
 include depreciated cdefs.h as needed for compilation with alpine
-(Asterisk 15.7.4's utils/db1-ast/include/db.h already includes sys/cdefs.h,
-so only the ast_expr2.c hunk is needed.)
+(Asterisk 23 removed utils/db1-ast, so only the ast_expr2.c hunk remains.)
 
 --- a/main/ast_expr2.c
 +++ b/main/ast_expr2.c

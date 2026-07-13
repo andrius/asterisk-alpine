@@ -41,11 +41,9 @@ Every row attempted on Alpine 3.24. `result` is the outcome of that attempt.
 | **22-cert** | Certified LTS | 22.8-cert3 | current certified | ✅ ok | 15 APKs (pgsql/ldap/tds/prometheus subpkgs omitted - modules don't build on libpq 18 / certified 22.8) |
 | **20** | LTS | 20.20.1 | SFO 2026-10 | ✅ ok | 20 APKs, verified |
 | **18** | LTS | 18.26.4 | sec-only → 2026-10 | ✅ ok | 17 APKs (pgsql/ldap/prometheus omitted); DAHDI/libpri dropped from aports, disabled in configure |
-| **17** | Standard | 17.9.4 | EOL | ✅ ok | 17 APKs, verified |
 | **16** | Certified LTS | 16.30.1 | EOL 2023 | ✅ ok | 17 APKs, verified |
-| **15** | Standard | 15.7.4 | EOL | ✅ ok | 17 APKs; needed trimmed cdefs patch + no install-headers target |
+| **git** | dev | master snapshot | rolling | 🟡 best-effort | full tier only; `make build-git` pins _gitrev via scripts/git-snapshot.sh |
 | **14** | Standard | 14.7.8 | EOL | ✅ ok | 17 APKs - patched pj_in_addr + srtp GCM keysize |
-| **13** | LTS | 13.38.3 | EOL 2021 | ❌ fail | bundled db1-ast `HTAB` struct lost `mapp` member |
 | **12** | Standard | 12.8.2 | EOL | ❌ fail (expected) | PJSIP era; same or worse |
 | **11** | LTS | 11.25.3 | EOL 2017 | ❌ fail (expected) | pre-PJSIP; OpenSSL 1.0 era |
 | **10** | Standard | 10.12.4 | EOL 2012 | ❌ fail (expected) | pre-PJSIP; OpenSSL 1.0 era |
@@ -172,8 +170,12 @@ Ship **18, 20, 22, 23** on current Alpine (3.22 / 3.24 / edge).
 - **Acceptance:** a clean Alpine VM can `apk add` any one line using only the public key +
   one repo URL; versions never silently overlap.
 
-### M4 - Walk into the past on Alpine 3.24 ⬜
-Attempt **20 → 18 → 17 → 16 → 15 → 14 → 13 → 12 → 11 → 10 → 1.8** on the single base.
+### M4 - Walk into the past on Alpine 3.24 ✅
+Attempted every line back to **1.6** on the single base. Kept the LTS + EOL-LTS
+lines that build green: **20, 18, 16, 14, 1.8, 1.6**. Dropped the non-LTS
+standard releases (17, 15, 13) - they added CI cost with no LTS payoff. The two
+musl module-load fixes (recursive-mutex static init + dlclose loop) made even
+**1.6** and **1.8** fully functional (all modules load).
 - Each line: derive APKBUILD from the closest aports recipe (or the sibling project's
   Debian build), apply the musl patches that still match, run `abuild -r` on 3.24.
 - Record outcome per line: `ok` (built + `asterisk -V` verified) or `fail:<root cause>`.

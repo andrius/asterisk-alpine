@@ -13,7 +13,7 @@ A complete Docker-based buildchain for compiling Asterisk PBX packages for Alpin
 This repository provides:
 
 - **Docker-based build environment** for creating APK packages with Alpine's `abuild`
-- **Official Alpine APKBUILDs** for multiple Asterisk lines (23, 22, 22-cert, 20, 18, 17, 16, 15) on Alpine 3.24
+- **Official Alpine APKBUILDs** for multiple Asterisk lines (23, 22, 22-cert, 20, 18, 16, git) on Alpine 3.24
 - **~20 Asterisk subpackages per line** (core, codecs, database connectors, etc.)
 - **Signed APK repository** infrastructure (`repository/v3.24/main/x86_64/`)
 - **Automated build + test** via Makefile, and a GitHub Actions pipeline that publishes to GitHub Pages
@@ -59,7 +59,7 @@ make build-20          # Asterisk 20
 
 ```bash
 make build-modern      # 20 + 22 + 22-cert + 23
-make build-full        # all eight green lines (23 22 22-cert 20 18 17 16 15)
+make build-full        # 23 22 22-cert 20 18 16 git
 ```
 
 ### Test a built line
@@ -171,7 +171,7 @@ apk add --allow-untrusted asterisk-23.4.1-r0.apk
 ```bash
 make help            # Show all available targets
 make list            # Show the build matrix from buildchain/versions.mk
-make build-<line>    # Build one line (23, 22, 22-cert, 20, 18, 17, 16, 15)
+make build-<line>    # Build one line (23, 22, 22-cert, 20, 18, 16, git)
 make build-modern    # Build 20 + 22 + 22-cert + 23
 make build-full      # Build all eight green lines
 make test-<line>     # Install + verify one built line

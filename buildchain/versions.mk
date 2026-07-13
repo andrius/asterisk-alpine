@@ -20,13 +20,14 @@
 22       22.10.1             3.24   target   ok
 20       20.20.1             3.24   target   ok
 18       18.26.4             3.24   target   ok:pgsql,ldap,prometheus-subpkgs-omitted
-17       17.9.4              3.24   target   ok
 16       16.30.1             3.24   target   ok
-15       15.7.4              3.24   target   ok:cdefs-patch-trimmed,no-install-headers
+
+# ---- dev: Asterisk master, snapshotted from git (pkgver + _gitrev set by
+# ---- scripts/git-snapshot.sh; rebuild via 'make build-git') ----
+git      24.0.0_git20260713  3.24   target   tbd:snapshot-master-then-build
 
 # ---- FAILURE FRONTIER ( pjproject ABI break on modern pjproject ) ----
 14       14.7.8              3.24   target   ok:pj_in_addr+srtp-gcm-keysize-patches
-13       13.38.3             3.24   target   fail:db1-ast-HTAB-struct-mapp-removed (fails earlier than 14)
 
 # ---- ancient (now GREEN: recursive-mutex + dlclose patches fixed the musl module-load deadlock) ----
 1.8      1.8.32.3            3.24   target   ok:185 modules load,chan_sip works (recursive mutex static init + dlclose loop fix)
