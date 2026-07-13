@@ -71,7 +71,7 @@ help:
 list:
 	@echo "Asterisk × Alpine build matrix (buildchain/versions.mk):"
 	@echo ""
-	@grep -vE '^\s*#|^\s*$$' buildchain/versions.mk | awk -F'[[:space:]]+' 'NF>=7 {printf "  %-6s %-10s alpine %-5s openssl %-5s pj %-8s %-7s %s\n", $$1, $$2, $$3, $$4, $$5, $$6, $$7}'
+	@grep -vE '^\s*#|^\s*$$' buildchain/versions.mk | awk -F'[[:space:]]+' 'NF>=5 { r=""; for(i=5;i<=NF;i++) r=r(i>5?" ":"")$$i; printf "  %-7s %-20s alpine %-5s %-7s %s\n", $$1, $$2, $$3, $$4, r }'
 	@echo ""
 	@echo "Lines present in packages/: $$(ls -d packages/*/ 2>/dev/null | sed 's|packages/||;s|/||' | tr '\n' ' ')"
 
