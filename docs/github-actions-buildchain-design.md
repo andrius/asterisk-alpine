@@ -2,7 +2,7 @@
 name: github-actions-buildchain
 status: approved
 created: 2026-07-06T15:40:00Z
-updated: 2026-07-06T15:40:00Z
+updated: 2026-07-13T12:59:41Z
 ---
 
 # GitHub Actions Buildchain → Signed APK Repo on GitHub Pages
@@ -18,7 +18,7 @@ Success criteria:
 - Push/PR to `main` builds + smoke-tests the modern tier and reports pass/fail.
 - Push-to-`main`/tag publishes a signed repo to Pages that a clean Alpine box can
   `apk add asterisk` from, using only the published public key + the repo URL.
-- Documented-fail lines (13, 14) run without failing the whole workflow, so a
+- Documented-fail line 14 runs without failing the whole workflow, so a
   change in the failure frontier is visible.
 
 ## Non-goals (later phases, per ROADMAP M5/M6)
@@ -45,8 +45,8 @@ Success criteria:
 
 - Triggers:
   - `push` / `pull_request` on `main` → **modern tier**: 20, 22, 22-cert, 23.
-  - `workflow_dispatch` and tag `v*` → **full tier**: + 18, 17, 16, 15.
-  - Lines 13, 14 run as `continue-on-error` **frontier watchers**.
+  - `workflow_dispatch` and tag `v*` → **full tier**: + 18, 16, git (best-effort); ancient 1.6/1.8 and frontier 14 also full-tier/best-effort.
+  - Line 14 runs as a `continue-on-error` **frontier watcher**.
 - Per matrix leg (`ubuntu-latest`, GitHub-hosted):
   1. checkout
   2. set up Docker buildx
@@ -77,7 +77,7 @@ Success criteria:
 
 ## Makefile changes this requires
 
-- Add `build-15`, `build-16`, `build-17`, `build-18`, `build-22-cert` targets
+- Add `build-16`, `build-18`, `build-22-cert`, `build-git`, `build-1.6`, `build-1.8` targets
   (today only `build-20/22/23` exist) so CI calls `make build-<line>` uniformly.
 - Key setup: consume a key from env/secret in CI instead of only generating one
   (`init-keys` currently generates). Add a path that installs `ABUILD_PRIVATE_KEY`.
@@ -87,7 +87,7 @@ Success criteria:
 
 - GitHub Pages: soft 100 GB/month bandwidth, not a true CDN. Accepted for now;
   can front with Cloudflare later.
-- Build cost: 8 lines × ~30-60 min each, parallelized by matrix. GitHub-hosted
+- Build cost: 6 green + git (7 native lines) × ~30-60 min each, parallelized by matrix. GitHub-hosted
   minutes are free for public repos.
 - Signing key in CI: stored as a GitHub Secret. Fork PRs cannot read it, so they
   build unsigned. Rotating the key means updating the secret + republishing pubkey.

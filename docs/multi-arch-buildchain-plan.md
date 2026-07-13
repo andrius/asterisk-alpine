@@ -224,7 +224,7 @@ Replace the `run: |` body of the `pick` step (lines 35-51) with:
           if [ "$TIER" = "modern" ]; then
             LINES='["20","22","22-cert","23"]'
           else
-            LINES='["23","22","22-cert","20","18","17","16","15"]'
+            LINES='["23","22","22-cert","20","18","16"]'
           fi
 
           # Native arches build every tier line.
@@ -262,7 +262,7 @@ check workflow_dispatch full refs/heads/multi-arch-buildchain   # full
 Expected `check` output (the matrix line only; `publish`/`tier` also print on their own lines in full stdout):
 - `pull_request`: `{"n":8,"arches":["aarch64","x86_64"],"arm32_ok":true}` (modern, native only; `publish=false tier=modern`).
 - `push` to main: `{"n":8,"arches":["aarch64","x86_64"],"arm32_ok":true}` (`publish=true tier=modern`).
-- `workflow_dispatch` full: `{"n":22,"arches":["aarch64","armhf","armv7","x86_64"],"arm32_ok":true}` - 16 native (8 lines x 2) + 6 32-bit (3 lines x 2); `arm32_ok:true` confirms every armv7/armhf combo is best-effort (`publish=true tier=full`). Also confirm 32-bit lines are only 22/23/22-cert: `... | jq -c '.include|map(select(.arch|test("arm"))|.line)|unique'` -> `["22","22-cert","23"]`.
+- `workflow_dispatch` full: `{"n":20,"arches":["aarch64","armhf","armv7","x86_64"],"arm32_ok":true}` - 14 native (6 green + git = 7 lines x 2) + 6 32-bit (3 lines x 2); `arm32_ok:true` confirms every armv7/armhf combo is best-effort (`publish=true tier=full`). Also confirm 32-bit lines are only 22/23/22-cert: `... | jq -c '.include|map(select(.arch|test("arm"))|.line)|unique'` -> `["22","22-cert","23"]`.
 
 - [ ] **Step 4: Lint the workflow**
 

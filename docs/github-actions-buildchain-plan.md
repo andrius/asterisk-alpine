@@ -12,8 +12,8 @@
 
 - Single Alpine base `3.24`; repo output path `repository/v3.24/main/x86_64/`; `ALPINE_VERSION=v3.24`, `ARCH=x86_64`.
 - Signing key name: `packages@asterisk-alpine.rsa` (secret `ABUILD_KEY_NAME`). Private key from secret `ABUILD_PRIVATE_KEY`; public key derived, never committed.
-- Green lines (build + test): `23, 22, 22-cert, 20, 18, 17, 16, 15`. Modern subset (push/PR): `20, 22, 22-cert, 23`. Full (tag/dispatch): all 8.
-- Frontier watchers `14, 13`: `continue-on-error`, never block the run, never published.
+- Green lines (build + test): `23, 22, 22-cert, 20, 18, 16, git`, plus ancient `1.6, 1.8` and frontier `14`. Modern subset (push/PR): `20, 22, 22-cert, 23`. Full (tag/dispatch): all current lines. (15/17/13 were later dropped; git, 1.6, 1.8 added.)
+- Frontier watcher `14`: `continue-on-error`, never blocks the run, never published.
 - Infra is TDD-exempt (project policy): validate via `make` locally, `workflow_dispatch`, and review - not red-green unit tests.
 - Publish only on push-to-`main` / tag `v*`; never on pull_request. Pages deploy via artifact (no `gh-pages` branch).
 - No AI attribution in commits; `git commit --no-gpg-sign`.
@@ -26,15 +26,15 @@
 - Modify: `Makefile` (add targets alongside existing `build-22`/`build-23`)
 
 **Interfaces:**
-- Produces: `make build-15`, `make build-16`, `make build-17`, `make build-18`, `make build-22-cert`, `make build-full` - each mirrors the existing `build-22` recipe (compose build + run `build.sh` + `repo-index-22`). CI calls `make build-<line>`.
+- Produces: `make build-16`, `make build-18`, `make build-22-cert`, `make build-git`, `make build-1.6`, `make build-1.8`, `make build-full` - each mirrors the existing `build-22` recipe (compose build + run `build.sh` + `repo-index-22`). CI calls `make build-<line>`.
 
 - [ ] **Step 1: Add the missing per-line build targets**
 
 In `Makefile`, after the existing `build-23` block (~line 88), add (mirrors `build-22` exactly, swapping the service name):
 
 ```makefile
-# --- Green lines 15–18 + 22-cert on Alpine 3.24 ---
-build-18 build-17 build-16 build-15 build-22-cert: init-keys
+# --- Legacy green lines 16, 18 + 22-cert on Alpine 3.24 ---
+build-18 build-16 build-22-cert: init-keys
 	@echo "Building Asterisk line $(@:build-%=%) on Alpine 3.24..."
 	@chmod +x scripts/build.sh scripts/build-repo-index.sh
 	docker compose build builder-$(@:build-%=%)
@@ -42,8 +42,9 @@ build-18 build-17 build-16 build-15 build-22-cert: init-keys
 	@$(MAKE) --no-print-directory repo-index-22
 	@echo "✅ line $(@:build-%=%) packages built"
 
-shell-18 shell-17 shell-16 shell-15 shell-22-cert:
+shell-18 shell-16 shell-22-cert:
 	docker compose run --rm builder-$(@:shell-%=%) /bin/sh
+# Note: build-git, build-1.6, build-1.8 each have their own dedicated recipe.
 ```
 
 - [ ] **Step 2: Add the `build-full` tier and update `build-all`**
@@ -53,7 +54,7 @@ Replace the existing `build-modern` / `build-all` block (~lines 94-98) with:
 ```makefile
 # --- Tier groupings ---
 build-modern: build-20 build-22 build-22-cert build-23
-build-full:   build-23 build-22 build-22-cert build-20 build-18 build-17 build-16 build-15
+build-full:   build-23 build-22 build-22-cert build-20 build-18 build-16 build-git
 build-all:    build-full
 ```
 
@@ -62,20 +63,20 @@ build-all:    build-full
 Add the new targets to the `.PHONY` lines at the top of `Makefile`:
 
 ```makefile
-.PHONY: build-15 build-16 build-17 build-18 build-22-cert build-full
-.PHONY: shell-15 shell-16 shell-17 shell-18 shell-22-cert
+.PHONY: build-16 build-18 build-22-cert build-git build-1.6 build-1.8 build-full
+.PHONY: shell-16 shell-18 shell-22-cert
 ```
 
 - [ ] **Step 4: Validate locally (one fast line)**
 
-Run: `make build-15`
-Expected: builder-15 image builds, `build.sh` runs `abuild -r`, ends with "✅ line 15 packages built"; APKs appear in `repository/v3.24/main/x86_64/`.
+Run: `make build-16`
+Expected: builder-16 image builds, `build.sh` runs `abuild -r`, ends with "✅ line 16 packages built"; APKs appear in `repository/v3.24/main/x86_64/`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add Makefile
-git commit --no-gpg-sign -m "Add build targets for 15/16/17/18/22-cert and build-full tier"
+git commit --no-gpg-sign -m "Add build targets for 16/18/22-cert and build-full tier"
 ```
 
 ---
@@ -199,7 +200,8 @@ jobs:
       - id: pick
         run: |
           MODERN='["20","22","22-cert","23"]'
-          FULL='["23","22","22-cert","20","18","17","16","15"]'
+          FULL='["23","22","22-cert","20","18","16"]'
+          # git, 1.6, 1.8 are added as separate best-effort/ancient matrix entries in the actual ci.yml.
           EVENT='${{ github.event_name }}'
           TIER='${{ github.event.inputs.tier }}'
           if [ "$EVENT" = "pull_request" ]; then
@@ -240,7 +242,7 @@ jobs:
           if-no-files-found: error
 ```
 
-- [ ] **Step 2: Add the frontier-watcher job (13, 14)**
+- [ ] **Step 2: Add the frontier-watcher job (14)**
 
 Append this job (runs only on tag/dispatch full builds; never blocks):
 
@@ -253,7 +255,7 @@ Append this job (runs only on tag/dispatch full builds; never blocks):
     strategy:
       fail-fast: false
       matrix:
-        line: ["14", "13"]
+        line: ["14"]
     env:
       ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
@@ -427,13 +429,13 @@ Expected: `apk` verifies the signed index with the trusted key, installs, prints
 - [ ] **Step 4: Exercise the full tier once**
 
 Run: `gh workflow run ci.yml -f tier=full` then watch.
-Expected: 8 green lines build+test; `frontier` job attempts 13/14 and reports failure without failing the run.
+Expected: 6 green lines (23/22/22-cert/20/18/16) build+test, plus `git` (best-effort) and `frontier` (line 14, best-effort); none of the best-effort failures fail the run.
 
 ---
 
 ## Notes / risks to watch during validation
 
 - **Runner uid vs container `builder` uid:** `keys/` is written on the host and mounted into the builder. If abuild can't read the key (permission), add `chmod -R a+rX keys` in the install script or align uid. Validate in Task 3 Step 1's first run.
-- **Build time:** 8 lines × ~30-60 min, parallel by matrix. Consider `docker/build-push-action` layer caching later if runners are slow.
+- **Build time:** 6 green + git (7 native lines) × ~30-60 min, parallel by matrix. Consider `docker/build-push-action` layer caching later if runners are slow.
 - **`test-<line>` in CI:** the smoke tests start the daemon in a container; ensure the runner's Docker allows it (it does on `ubuntu-latest`). If a noarch subpackage path issue appears, it's the known `.ai-local.md` caveat - install by direct `.apk` path.
 - **Pages first deploy:** `configure-pages@v5` with `enablement: true` turns Pages on; the first `deploy-pages` may take a minute to provision the domain.

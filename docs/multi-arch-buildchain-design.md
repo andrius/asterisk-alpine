@@ -50,7 +50,7 @@ Rejected alternatives:
 | Trigger | x86_64 | aarch64 | armv7 | armhf |
 |---|---|---|---|---|
 | PR / push-to-`main` (modern) | 20, 22, 22-cert, 23 | 20, 22, 22-cert, 23 | - | - |
-| tag / `workflow_dispatch` (full) | all 8 lines | all 8 lines | 22, 23 (+22-cert best-effort) | 22, 23 (+22-cert best-effort) |
+| tag / `workflow_dispatch` (full) | all green + git | all green + git | 22, 23 (+22-cert best-effort) | 22, 23 (+22-cert best-effort) |
 
 Rules:
 
@@ -67,8 +67,8 @@ Alpine-native per-arch layout plus the shared `noarch/` tree:
 
 ```
 apk.andrius.mobi/v3.24/main/
-|- x86_64/    APKINDEX.tar.gz + all 8 lines
-|- aarch64/   APKINDEX.tar.gz + all 8 lines
+|- x86_64/    APKINDEX.tar.gz + all green lines (+ git)
+|- aarch64/   APKINDEX.tar.gz + all green lines (+ git)
 |- armv7/     APKINDEX.tar.gz + 22, 23 (+22-cert if it passes)
 |- armhf/     APKINDEX.tar.gz + 22, 23 (+22-cert if it passes)
 |- noarch/    sample-config, doc, sounds, openrc (arch-independent, one copy)
@@ -131,7 +131,7 @@ best-effort flag, computed from the trigger:
 
 ### `frontier` job
 
-Unchanged in spirit (lines 14, 13). Native arches only.
+Unchanged in spirit (line 14). Native arches only.
 
 ### `publish` job
 
@@ -182,4 +182,4 @@ in `ROADMAP.md`. The "failure frontier" becomes two-dimensional (line x arch).
 
 - Native macOS / Homebrew Asterisk (different toolchain).
 - Alpine arches beyond the four above (x86, ppc64le, s390x, riscv64).
-- 32-bit builds of the ancient lines (18/17/16/15/14/13) and line 20.
+- 32-bit builds of lines 22/23/22-cert (and line 20). Ancient lines (1.6/1.8/14) and the git line are x86_64/aarch64 only.
