@@ -257,14 +257,38 @@ jobs:
           cp "keys/${ABUILD_KEY_NAME:-packages@asterisk-alpine.rsa}.pub" _site/
           echo "apk.andrius.mobi" > _site/CNAME
           cat > _site/index.html <<'HTML'
-          <!doctype html><meta charset=utf-8>
+          <!doctype html>
+          <meta charset=utf-8>
+          <meta name=viewport content="width=device-width, initial-scale=1">
           <title>Asterisk Alpine APK repository</title>
           <h1>Asterisk Alpine APK repository</h1>
-          <p>Signed apk packages for x86_64, aarch64, armv7, armhf. Add the key and repo:</p>
+          <p>Signed Alpine apk packages for multiple Asterisk versions - x86_64,
+          aarch64, armv7, armhf. Source, docs and Docker examples at
+          <a href="https://github.com/andrius/asterisk-alpine">github.com/andrius/asterisk-alpine</a>
+          (see the <a href="https://github.com/andrius/asterisk-alpine#install">README</a>).</p>
+          <h2>1. Trust the signing key</h2>
           <pre>wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
-            https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub
-          echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
-          apk add "asterisk@andrius-asterisk=~23"</pre>
+            https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub</pre>
+          <h2>2. Add the repository under a pin tag</h2>
+          <pre>echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
+          apk update</pre>
+          <h2>3. Install the line you want (pin the version)</h2>
+          <p>The <code>@andrius-asterisk</code> tag takes asterisk from this repo
+          only (Alpine ships its own); <code>~</code> is a version-prefix match.</p>
+          <pre>apk add "asterisk@andrius-asterisk=~23"      # 23.x  current
+          apk add "asterisk@andrius-asterisk=~22"      # 22.x  LTS (22.10)
+          apk add "asterisk@andrius-asterisk=~22.8"    # 22.8  certified
+          apk add "asterisk@andrius-asterisk=~20"      # 20.x
+          apk add "asterisk@andrius-asterisk=~18"      # 18.x
+          apk add "asterisk@andrius-asterisk=~16"      # 16.x
+          apk add "asterisk@andrius-asterisk=~1.8"     # 1.8
+          apk add "asterisk@andrius-asterisk=~1.6"     # 1.6</pre>
+          <p>The <b>git</b> line is a build of Asterisk <code>master</code> (a
+          development snapshot, may be unstable). It sorts highest, so an
+          unpinned install gets it - pin a version above for a release:</p>
+          <pre>apk add asterisk@andrius-asterisk          # git (master) snapshot</pre>
+          <p>Why the pin tag matters and per-line details:
+          <a href="https://github.com/andrius/asterisk-alpine#avoiding-conflicts-with-alpines-asterisk">README</a>.</p>
           HTML
       - uses: actions/upload-pages-artifact@v5
         with:

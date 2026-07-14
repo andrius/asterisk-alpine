@@ -33,6 +33,10 @@ apk add "asterisk@andrius-asterisk=~22.8"    # 22.8  certified
 apk add "asterisk@andrius-asterisk=~20"      # 20.x
 ```
 
+The **git** line (a build of Asterisk `master`, may be unstable) sorts highest,
+so an unpinned `apk add asterisk@andrius-asterisk` installs it. Pin a version
+as above for a release.
+
 ### Avoiding conflicts with Alpine's asterisk
 
 Alpine ships its **own** `asterisk` (`22.9` in the always-enabled `main` repo),
