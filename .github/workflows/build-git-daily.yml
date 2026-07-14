@@ -1,0 +1,92 @@
+name: build-git-daily
+
+# Daily build of the Asterisk master ("git") snapshot for Alpine 3.24, SKIPPED
+# when upstream master is unchanged since the last build. Implements #4
+# (Stage 2) on the reusable-workflow foundation: calls _build.yml + _publish.yml.
+# Publish prunes older _git snapshots (replace, not accumulate) and the new pin
+# (_gitrev/pkgver/sha512sums) is committed back to main as the skip baseline.
+# Stage 3 adds an Alpine-edge canary leg.
+
+on:
+  schedule:
+    - cron: "13 6 * * *"   # ~06:13 UTC daily, off the round hour
+  workflow_dispatch:        # manual trigger forces a build (ignores the skip)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: git-daily
+  cancel-in-progress: false   # never cancel a run already building
+
+jobs:
+  skip-check:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.c.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: c
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "manual dispatch; building regardless of skip"
+            exit 0
+          fi
+          CURRENT=$(git ls-remote https://github.com/asterisk/asterisk.git refs/heads/master | awk '{print $1}')
+          PINNED=$(grep '^_gitrev=' packages/git/APKBUILD | cut -d= -f2)
+          echo "current master: $CURRENT"
+          echo "last-built pin: $PINNED"
+          if [ "$CURRENT" = "$PINNED" ]; then
+            echo "master unchanged since last build; skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: skip-check
+    if: needs.skip-check.outputs.skip != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  runner: ubuntu-latest }
+          - { arch: aarch64, runner: ubuntu-24.04-arm }
+    uses: ./.github/workflows/_build.yml
+    with:
+      line: git
+      arch: ${{ matrix.arch }}
+      runner: ${{ matrix.runner }}
+      platform: ''
+      allow_fail: true       # master is volatile; a broken leg is red but does not fail the run
+    secrets: inherit
+
+  publish:
+    needs: [skip-check, build]
+    if: needs.skip-check.outputs.skip != 'true'
+    uses: ./.github/workflows/_publish.yml
+    secrets: inherit
+
+  commit-pin:
+    needs: [skip-check, publish]
+    if: needs.skip-check.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download the build's updated git APKBUILD
+        uses: actions/download-artifact@v8
+        with:
+          name: git-apkbuild
+          path: packages/git
+        continue-on-error: true   # absent if the git build failed -> no-op below
+      - name: Commit and push the new pin
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/git/APKBUILD
+          if git diff --cached --quiet; then
+            echo "no pin change to commit (build did not refresh the APKBUILD)"
+            exit 0
+          fi
+          git commit -m "git line: pin master snapshot [skip ci]"
+          git push
