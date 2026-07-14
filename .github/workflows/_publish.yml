@@ -1,0 +1,162 @@
+name: publish
+
+# Reusable publisher: collect built APKs, merge with the live repo (never wipe),
+# rebuild + sign the per-arch APKINDEX, deploy to GitHub Pages. Stage 1 of the
+# reusable-workflow refactor: this is the ci.yml publish job verbatim; the caller
+# keeps the needs/if gating.
+
+on:
+  workflow_call:
+    secrets:
+      ABUILD_PRIVATE_KEY:
+        required: true
+      ABUILD_KEY_NAME:
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    env:
+      ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
+      ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: actions/configure-pages@v6
+        with:
+          enablement: true
+      - name: Install signing key
+        run: ./scripts/ci-install-signing-key.sh
+      - name: Collect built APKs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: apks-*
+          path: _artifacts
+      - name: Distribute APKs into per-arch repo dirs
+        run: |
+          for d in _artifacts/apks-*; do
+            [ -d "$d" ] || continue
+            arch=$(basename "$d" | cut -d- -f2)
+            mkdir -p "repository/v3.24/main/$arch"
+            cp "$d"/*.apk "repository/v3.24/main/$arch/"
+          done
+          echo "arches present: $(ls repository/v3.24/main)"
+      - name: Seed from the live repo (merge - do not wipe existing arches/lines)
+        run: |
+          BASE="https://apk.andrius.mobi/v3.24/main"
+          seeded=0
+          for arch in x86_64 aarch64 armv7 armhf; do
+            code=$(curl -sSL --retry 3 --retry-delay 3 --retry-connrefused \
+              -o /tmp/idx.tar.gz -w '%{http_code}' "$BASE/$arch/APKINDEX.tar.gz" || echo 000)
+            if [ "$code" = "404" ]; then
+              echo "no live index for $arch (first publish or arch absent); skipping"
+              continue
+            elif [ "$code" != "200" ]; then
+              echo "ERROR: live index for $arch returned HTTP $code; aborting to avoid wiping existing packages"
+              exit 1
+            fi
+            mkdir -p "repository/v3.24/main/$arch"
+            # Each package the live index lists: filename = P-V.apk. A:noarch
+            # packages live under the shared noarch/ path on the live site; all
+            # others under the arch dir. Download any this run did not rebuild
+            # into the local arch dir (abuild's natural layout). Dropped lines
+            # (15, 17) are skipped here so the next publish ages them out.
+            tar -xzOf /tmp/idx.tar.gz APKINDEX 2>/dev/null | awk '
+              BEGIN { RS = ""; FS = "\n" }
+              {
+                p = ""; v = ""; a = ""
+                for (i = 1; i <= NF; i++) {
+                  if ($i ~ /^P:/) p = substr($i, 3)
+                  if ($i ~ /^V:/) v = substr($i, 3)
+                  if ($i ~ /^A:/) a = substr($i, 3)
+                }
+                if (p == "") next
+                if (p ~ /^asterisk/ && (v ~ /^15\./ || v ~ /^17\./)) next
+                print a "\t" p "-" v ".apk"
+              }' > /tmp/seed-list.txt
+            while IFS="$(printf '\t')" read -r a f; do
+              [ -n "$f" ] || continue
+              [ -f "repository/v3.24/main/$arch/$f" ] && continue
+              if [ "$a" = "noarch" ]; then src="$BASE/noarch/$f"; else src="$BASE/$arch/$f"; fi
+              if curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused "$src" -o "repository/v3.24/main/$arch/$f"; then
+                seeded=$((seeded + 1))
+              else
+                rm -f "repository/v3.24/main/$arch/$f"
+                echo "  skip $arch/$f (fetch failed)"
+              fi
+            done < /tmp/seed-list.txt
+            echo "seeded from live $arch index"
+          done
+          echo "total seeded files: $seeded"
+      - name: Make bind-mounted dirs writable by the container builder
+        run: sudo chmod -R a+rwX repository keys
+      - name: Build + sign per-arch APKINDEX (shared canonical noarch)
+        run: |
+          docker compose build builder-23
+          for arch in x86_64 aarch64 armv7 armhf; do
+            [ -d "repository/v3.24/main/$arch" ] || continue
+            # x86_64 is indexed first and defines the canonical noarch set
+            # (build-repo-index.sh mirrors A:noarch files into main/noarch/).
+            # Overlay those canonical files into each later arch dir so every
+            # index references identical noarch checksums; apk serves them from
+            # the shared noarch/ path.
+            if [ -d repository/v3.24/main/noarch ]; then
+              cp -f repository/v3.24/main/noarch/*.apk "repository/v3.24/main/$arch/" 2>/dev/null || true
+            fi
+            docker compose run --rm -e ALPINE_VERSION=v3.24 -e ARCH="$arch" builder-23 \
+              sh /home/builder/scripts/build-repo-index.sh
+          done
+      - name: Assemble Pages site
+        run: |
+          mkdir -p _site/v3.24/main
+          for arch in x86_64 aarch64 armv7 armhf noarch; do
+            [ -d "repository/v3.24/main/$arch" ] && cp -r "repository/v3.24/main/$arch" _site/v3.24/main/
+          done
+          cp "keys/${ABUILD_KEY_NAME:-packages@asterisk-alpine.rsa}.pub" _site/
+          echo "apk.andrius.mobi" > _site/CNAME
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset=utf-8>
+          <meta name=viewport content="width=device-width, initial-scale=1">
+          <title>Asterisk Alpine APK repository</title>
+          <h1>Asterisk Alpine APK repository</h1>
+          <p>Signed Alpine apk packages for multiple Asterisk versions - x86_64,
+          aarch64, armv7, armhf. Source, docs and Docker examples at
+          <a href="https://github.com/andrius/asterisk-alpine">github.com/andrius/asterisk-alpine</a>
+          (see the <a href="https://github.com/andrius/asterisk-alpine#install">README</a>).</p>
+          <h2>1. Trust the signing key</h2>
+          <pre>wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
+            https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub</pre>
+          <h2>2. Add the repository under a pin tag</h2>
+          <pre>echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
+          apk update</pre>
+          <h2>3. Install the line you want (pin the version)</h2>
+          <p>The <code>@andrius-asterisk</code> tag takes asterisk from this repo
+          only (Alpine ships its own); <code>~</code> is a version-prefix match.</p>
+          <pre>apk add "asterisk@andrius-asterisk=~23"      # 23.x  current
+          apk add "asterisk@andrius-asterisk=~22"      # 22.x  LTS (22.10)
+          apk add "asterisk@andrius-asterisk=~22.8"    # 22.8  certified
+          apk add "asterisk@andrius-asterisk=~20"      # 20.x
+          apk add "asterisk@andrius-asterisk=~18"      # 18.x
+          apk add "asterisk@andrius-asterisk=~16"      # 16.x
+          apk add "asterisk@andrius-asterisk=~1.8"     # 1.8
+          apk add "asterisk@andrius-asterisk=~1.6"     # 1.6</pre>
+          <p>The <b>git</b> line is a build of Asterisk <code>master</code> (a
+          development snapshot, may be unstable). It sorts highest, so an
+          unpinned install gets it - pin a version above for a release:</p>
+          <pre>apk add asterisk@andrius-asterisk          # git (master) snapshot</pre>
+          <p>Why the pin tag matters and per-line details:
+          <a href="https://github.com/andrius/asterisk-alpine#avoiding-conflicts-with-alpines-asterisk">README</a>.</p>
+          HTML
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v5
