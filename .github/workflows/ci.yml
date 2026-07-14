@@ -102,11 +102,11 @@ jobs:
       ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up QEMU (emulated arches only)
         if: matrix.platform != ''
-        uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+        uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
       - name: Install signing key
         run: ./scripts/ci-install-signing-key.sh
       - name: Make bind-mounted dirs writable by the container builder
@@ -118,7 +118,7 @@ jobs:
       - name: Smoke test ${{ matrix.line }} (${{ matrix.arch }})
         run: make test-${{ matrix.line }} ARCH=${{ matrix.arch }}
       - name: Upload APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apks-${{ matrix.arch }}-${{ matrix.line }}
           path: repository/v3.24/main/${{ matrix.arch }}/*.apk
@@ -137,8 +137,8 @@ jobs:
       ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: Install signing key
         run: ./scripts/ci-install-signing-key.sh
       - name: Make bind-mounted dirs writable by the container builder
@@ -148,7 +148,7 @@ jobs:
       - name: Attempt build ${{ matrix.line }} (expected to fail)
         run: make build-${{ matrix.line }}
       - name: Upload APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apks-x86_64-14
           path: repository/v3.24/main/x86_64/*.apk
@@ -165,15 +165,15 @@ jobs:
       ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: actions/configure-pages@v5
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: actions/configure-pages@v6
         with:
           enablement: true
       - name: Install signing key
         run: ./scripts/ci-install-signing-key.sh
       - name: Collect built APKs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: apks-*
           path: _artifacts
@@ -266,8 +266,8 @@ jobs:
           echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
           apk add "asterisk@andrius-asterisk=~23"</pre>
           HTML
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
