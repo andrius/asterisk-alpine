@@ -1,9 +1,10 @@
 #!/bin/sh
 # git-snapshot.sh - pin Asterisk master to a commit + version in packages/git/APKBUILD.
 #
-# Run before abuild (via 'make build-git'). Resolves master HEAD to a SHA,
-# reads AC_INIT for the base version, and rewrites _gitrev/pkgver in the
-# APKBUILD. abuild then fetches the GitHub archive for that exact commit.
+# Run before abuild (via 'make build-git'). Resolves master HEAD to a SHA and
+# rewrites _gitrev/pkgver in the APKBUILD. The base version is the NEXT_MAJOR
+# constant below (master's AC_INIT is literally "[master]", not a number).
+# abuild then fetches the GitHub archive for that exact commit.
 #
 # Usage: git-snapshot.sh <APKBUILD-path>
 set -eu
