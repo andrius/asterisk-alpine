@@ -147,6 +147,12 @@ jobs:
           sudo chmod -R a+rwX packages repository keys
       - name: Attempt build ${{ matrix.line }} (expected to fail)
         run: make build-${{ matrix.line }}
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks-x86_64-14
+          path: repository/v3.24/main/x86_64/*.apk
+          if-no-files-found: ignore
 
   publish:
     needs: [setup, build]
