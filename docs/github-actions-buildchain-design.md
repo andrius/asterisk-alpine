@@ -2,7 +2,7 @@
 name: github-actions-buildchain
 status: approved
 created: 2026-07-06T15:40:00Z
-updated: 2026-07-14T05:57:13Z
+updated: 2026-07-14T07:17:40Z
 ---
 
 # GitHub Actions Buildchain → Signed APK Repo on GitHub Pages
@@ -82,6 +82,13 @@ Success criteria:
 - Merge-with-live seed is preserved: the publish job downloads the existing
   live repo index and fills in any arch/line not rebuilt this run, so a
   partial build never wipes an existing package.
+- `apk index` prints "Total of N unsatisfiable package names" while building
+  the index - this is expected and harmless. The repo ships only Asterisk
+  packages, so the system libraries they link against (musl, openssl,
+  pjproject, spandsp, etc.) are absent from the indexed set and resolve from
+  Alpine main/community at install time. A clean `alpine:3.24` container
+  installing `asterisk@andrius-asterisk` from the live repo completes with
+  zero resolver errors.
 
 ## User-facing result
 
