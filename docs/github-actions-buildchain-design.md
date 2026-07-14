@@ -2,7 +2,7 @@
 name: github-actions-buildchain
 status: approved
 created: 2026-07-06T15:40:00Z
-updated: 2026-07-13T12:59:41Z
+updated: 2026-07-14T05:57:13Z
 ---
 
 # GitHub Actions Buildchain → Signed APK Repo on GitHub Pages
@@ -63,6 +63,25 @@ Success criteria:
   `actions/upload-pages-artifact` → `actions/deploy-pages`.
 - Pages is deployed from the workflow artifact (not a committed `gh-pages`
   branch), so the ~141 APKs never enter git history.
+
+### Publish matrix and tag deploys
+
+- `v*` tags publish the full matrix to apk.andrius.mobi. The `setup.pick`
+  step routes tag pushes to the `full` tier with `publish=true`, so every
+  green line is built and the publish job assembles the complete signed
+  repository.
+- The `github-pages` environment's deployment-branch-policy MUST list both
+  `main` (branch type) and `v*` (tag type). Restricting to main-only breaks
+  tag deploys because the environment gate rejects non-matching refs. This
+  is a required repo setting, not code.
+- Every line publishes on full / tag / dispatch runs: 23, 22, 22-cert, 20,
+  18, 16, git, ancient 1.6/1.8, and frontier 14 (if the build passes).
+  Frontier 14 is best-effort: its build step has no step-level
+  `continue-on-error`, so on failure the upload step does not run and no
+  14 artifact reaches publish.
+- Merge-with-live seed is preserved: the publish job downloads the existing
+  live repo index and fills in any arch/line not rebuilt this run, so a
+  partial build never wipes an existing package.
 
 ## User-facing result
 
