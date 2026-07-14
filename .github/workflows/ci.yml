@@ -204,7 +204,8 @@ jobs:
             # Each package the live index lists: filename = P-V.apk. A:noarch
             # packages live under the shared noarch/ path on the live site; all
             # others under the arch dir. Download any this run did not rebuild
-            # into the local arch dir (abuild's natural layout).
+            # into the local arch dir (abuild's natural layout). Dropped lines
+            # (15, 17) are skipped here so the next publish ages them out.
             tar -xzOf /tmp/idx.tar.gz APKINDEX 2>/dev/null | awk '
               BEGIN { RS = ""; FS = "\n" }
               {
@@ -214,7 +215,9 @@ jobs:
                   if ($i ~ /^V:/) v = substr($i, 3)
                   if ($i ~ /^A:/) a = substr($i, 3)
                 }
-                if (p != "") print a "\t" p "-" v ".apk"
+                if (p == "") next
+                if (p ~ /^asterisk/ && (v ~ /^15\./ || v ~ /^17\./)) next
+                print a "\t" p "-" v ".apk"
               }' > /tmp/seed-list.txt
             while IFS="$(printf '\t')" read -r a f; do
               [ -n "$f" ] || continue
