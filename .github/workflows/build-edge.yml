@@ -1,0 +1,40 @@
+name: build-edge
+
+# Weekly canary: build + smoke-test the newest Asterisk lines - LTS 22, dev 23,
+# git (master) - on Alpine EDGE for x86_64 + aarch64. Canary-only: NOT published
+# (edge is volatile). Surfaces musl / toolchain / base-image breakage on edge
+# before it ships in stable Alpine. Implements #8 (absorbs #4 Stage 3, git edge).
+
+on:
+  schedule:
+    - cron: "43 4 * * 1"   # weekly Mon ~04:43 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-edge
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { line: "22", arch: x86_64,  runner: ubuntu-latest }
+          - { line: "22", arch: aarch64, runner: ubuntu-24.04-arm }
+          - { line: "23", arch: x86_64,  runner: ubuntu-latest }
+          - { line: "23", arch: aarch64, runner: ubuntu-24.04-arm }
+          - { line: git,  arch: x86_64,  runner: ubuntu-latest }
+          - { line: git,  arch: aarch64, runner: ubuntu-24.04-arm }
+    uses: ./.github/workflows/_build.yml
+    with:
+      line: ${{ matrix.line }}
+      arch: ${{ matrix.arch }}
+      runner: ${{ matrix.runner }}
+      platform: ''
+      allow_fail: true
+      alpine_version: edge
+    secrets: inherit

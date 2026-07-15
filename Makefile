@@ -26,6 +26,18 @@ else
   SMOKE_LEVEL := full
 endif
 
+# --- Alpine base (3.24 stable, or edge canary) -------------------------------
+# ALPINE_VERSION is the repo-dir form (v3.24 or edge); the Docker image tag is
+# the same with a leading "v" stripped. Edge appends "-edge" to the builder and
+# test-image names so the 3.24 and edge trees coexist. Default: stable 3.24.
+ALPINE_VERSION ?= v3.24
+ALPINE_TAG := $(ALPINE_VERSION:v%=%)
+ifeq ($(ALPINE_VERSION),edge)
+  ALPINE_SUFFIX := -edge
+else
+  ALPINE_SUFFIX :=
+endif
+
 .PHONY: print-arch
 print-arch:
 	@echo "ARCH=$(ARCH) DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) SMOKE_LEVEL=$(SMOKE_LEVEL)"
@@ -91,11 +103,11 @@ init-keys:
 
 # --- Asterisk 22.x (LTS) on Alpine 3.24 ---
 build-22: init-keys
-	@echo "Building Asterisk 22.10.1 on Alpine 3.24..."
+	@echo "Building Asterisk 22.10.1 on Alpine $(ALPINE_VERSION)..."
 	@chmod +x scripts/build.sh
 	@chmod +x scripts/build-repo-index.sh
-	docker compose build builder-22
-	docker compose run --rm builder-22 sh /home/builder/scripts/build.sh
+	docker compose build builder-22$(ALPINE_SUFFIX)
+	docker compose run --rm builder-22$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
 	@echo "✅ Asterisk 22.10.1 packages built"
 	@$(MAKE) --no-print-directory repo-index-22
 
@@ -107,11 +119,11 @@ validate-22:
 
 # --- Asterisk 23.x (current) on Alpine 3.24 ---
 build-23: init-keys
-	@echo "Building Asterisk 23.4.1 on Alpine 3.24..."
+	@echo "Building Asterisk 23.4.1 on Alpine $(ALPINE_VERSION)..."
 	@chmod +x scripts/build.sh
 	@chmod +x scripts/build-repo-index.sh
-	docker compose build builder-23
-	docker compose run --rm builder-23 sh /home/builder/scripts/build.sh
+	docker compose build builder-23$(ALPINE_SUFFIX)
+	docker compose run --rm builder-23$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
 	@echo "✅ Asterisk 23.4.1 packages built"
 	@$(MAKE) --no-print-directory repo-index-22
 
@@ -123,10 +135,10 @@ validate-23:
 
 # --- Green lines (14/16/18/20/22-cert/1.6/1.8) on Alpine 3.24 ---
 build-20 build-18 build-16 build-22-cert build-14 build-1.8 build-1.6: init-keys
-	@echo "Building Asterisk line $(@:build-%=%) on Alpine 3.24..."
+	@echo "Building Asterisk line $(@:build-%=%) on Alpine $(ALPINE_VERSION)..."
 	@chmod +x scripts/build.sh scripts/build-repo-index.sh
-	docker compose build builder-$(@:build-%=%)
-	docker compose run --rm builder-$(@:build-%=%) sh /home/builder/scripts/build.sh
+	docker compose build builder-$(@:build-%=%)$(ALPINE_SUFFIX)
+	docker compose run --rm builder-$(@:build-%=%)$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
 	@$(MAKE) --no-print-directory repo-index-22
 	@echo "✅ line $(@:build-%=%) packages built"
 
@@ -135,8 +147,8 @@ build-git: init-keys
 	@echo "Snapshotting Asterisk master into packages/git/APKBUILD..."
 	@chmod +x scripts/git-snapshot.sh scripts/build.sh scripts/build-repo-index.sh
 	./scripts/git-snapshot.sh packages/git/APKBUILD
-	docker compose build builder-git
-	docker compose run --rm builder-git sh /home/builder/scripts/build.sh
+	docker compose build builder-git$(ALPINE_SUFFIX)
+	docker compose run --rm builder-git$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
 	@$(MAKE) --no-print-directory repo-index-22
 	@echo "✅ Asterisk git packages built"
 
@@ -153,10 +165,10 @@ build-all:    build-full
 # ============================================================================
 
 repo-index-22:
-	@echo "Indexing repository (Alpine 3.24)..."
-	docker compose run --rm -e ALPINE_VERSION=v3.24 -e ARCH=$(ARCH) builder-22 \
+	@echo "Indexing repository ($(ALPINE_VERSION))..."
+	docker compose run --rm -e ALPINE_VERSION=$(ALPINE_VERSION) -e ARCH=$(ARCH) builder-22$(ALPINE_SUFFIX) \
 		sh /home/builder/scripts/build-repo-index.sh
-	@echo "✅ v3.24 repo index created"
+	@echo "✅ $(ALPINE_VERSION) repo index created"
 
 # ============================================================================
 # Legacy M0 targets (unchanged - single 20.11.1 build on 3.22)
@@ -193,19 +205,19 @@ repo-index:
 # Internal: build the test image once (version-agnostic; the version is read
 # from ASTERISK_VERSION env at run time).
 test-image:
-	@docker build -t asterisk-alpine-test -f docker/test.Dockerfile --build-arg ALPINE_VERSION=3.24 . 2>&1 | tail -1
+	@docker build -t asterisk-alpine-test$(ALPINE_SUFFIX) -f docker/test.Dockerfile --build-arg ALPINE_VERSION=$(ALPINE_TAG) . 2>&1 | tail -1
 
 # Run the test for one version. Args: VER=<pkgver> [RELAXED=1 for certified]
 define _run_test
 	@echo ""
-	@echo "═══ test asterisk $(1) ═══"
+	@echo "═══ test asterisk $(1) [$(ALPINE_VERSION)] ═══"
 	@docker run --rm \
-		-v $(CURDIR)/repository/v3.24/main:/repo:ro \
+		-v $(CURDIR)/repository/$(ALPINE_VERSION)/main:/repo:ro \
 		-v $(CURDIR)/keys:/keys:ro \
 		-e ASTERISK_VERSION=$(1) \
 		-e SMOKE_LEVEL=$(SMOKE_LEVEL) \
 		$(if $(2),-e RELAXED=1,) \
-		asterisk-alpine-test
+		asterisk-alpine-test$(ALPINE_SUFFIX)
 endef
 
 test: test-image
