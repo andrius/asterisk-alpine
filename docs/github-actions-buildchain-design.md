@@ -2,7 +2,7 @@
 name: github-actions-buildchain
 status: approved
 created: 2026-07-06T15:40:00Z
-updated: 2026-07-14T07:17:40Z
+updated: 2026-07-15T17:34:22Z
 ---
 
 # GitHub Actions Buildchain → Signed APK Repo on GitHub Pages
@@ -89,6 +89,27 @@ Success criteria:
   Alpine main/community at install time. A clean `alpine:3.24` container
   installing `asterisk@andrius-asterisk` from the live repo completes with
   zero resolver errors.
+
+### Edge canary (not published)
+
+`build-edge.yml` builds + smoke-tests the newest lines - LTS 22, dev 23, git
+(master) - on **Alpine `edge`** for x86_64 + aarch64, weekly (Mon ~04:43 UTC) +
+on dispatch. It is a **canary**: `allow_fail: true`, and **not published** -
+artifacts land in `repository/edge/` on the runner only; apk.andrius.mobi serves
+only the `v3.24` registry.
+
+The build/test path is parameterized by Alpine version (`ALPINE` / `ALPINE_SUFFIX`
+/ `ALPINE_TAG` in the Makefile, `_build.yml` `alpine_version` input, the
+`-e REPODEST=/home/builder/packages/$ALPINE_VERSION` runtime override on the
+build run, and `builder-{22,23,git}-edge` compose services) so edge reuses the
+same `_build.yml` as 3.24. (Gotcha: abuild's `REPODEST` is the `builder.Dockerfile`
+`ENV`, not `abuild.conf` - hence the runtime `-e REPODEST` override.)
+
+**Why canary-only:** apk pins deps to ABI-stable sonames (`so:libc.musl-x86_64.so.1`,
+`so:libssl.so.3`, …) that Alpine keeps stable across versions, so the v3.24 APKs
+install + run on edge - edge users use the v3.24 repo. A published `/edge`
+registry would be volatile (edge rolls daily) and extra to sign + maintain. Flip
+to publishing `/edge` only if the canary shows v3.24 APKs failing on edge (ABI drift).
 
 ## User-facing result
 
