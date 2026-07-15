@@ -107,7 +107,7 @@ build-22: init-keys
 	@chmod +x scripts/build.sh
 	@chmod +x scripts/build-repo-index.sh
 	docker compose build builder-22$(ALPINE_SUFFIX)
-	docker compose run --rm builder-22$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
+	docker compose run --rm -e REPODEST=/home/builder/packages/$(ALPINE_VERSION) builder-22$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
 	@echo "✅ Asterisk 22.10.1 packages built"
 	@$(MAKE) --no-print-directory repo-index-22
 
@@ -123,7 +123,7 @@ build-23: init-keys
 	@chmod +x scripts/build.sh
 	@chmod +x scripts/build-repo-index.sh
 	docker compose build builder-23$(ALPINE_SUFFIX)
-	docker compose run --rm builder-23$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
+	docker compose run --rm -e REPODEST=/home/builder/packages/$(ALPINE_VERSION) builder-23$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
 	@echo "✅ Asterisk 23.4.1 packages built"
 	@$(MAKE) --no-print-directory repo-index-22
 
@@ -138,7 +138,7 @@ build-20 build-18 build-16 build-22-cert build-14 build-1.8 build-1.6: init-keys
 	@echo "Building Asterisk line $(@:build-%=%) on Alpine $(ALPINE_VERSION)..."
 	@chmod +x scripts/build.sh scripts/build-repo-index.sh
 	docker compose build builder-$(@:build-%=%)$(ALPINE_SUFFIX)
-	docker compose run --rm builder-$(@:build-%=%)$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
+	docker compose run --rm -e REPODEST=/home/builder/packages/$(ALPINE_VERSION) builder-$(@:build-%=%)$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
 	@$(MAKE) --no-print-directory repo-index-22
 	@echo "✅ line $(@:build-%=%) packages built"
 
@@ -148,7 +148,7 @@ build-git: init-keys
 	@chmod +x scripts/git-snapshot.sh scripts/build.sh scripts/build-repo-index.sh
 	./scripts/git-snapshot.sh packages/git/APKBUILD
 	docker compose build builder-git$(ALPINE_SUFFIX)
-	docker compose run --rm builder-git$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
+	docker compose run --rm -e REPODEST=/home/builder/packages/$(ALPINE_VERSION) builder-git$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
 	@$(MAKE) --no-print-directory repo-index-22
 	@echo "✅ Asterisk git packages built"
 
