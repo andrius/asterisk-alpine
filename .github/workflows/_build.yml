@@ -59,3 +59,10 @@ jobs:
           name: apks-${{ inputs.arch }}-${{ inputs.line }}
           path: repository/v3.24/main/${{ inputs.arch }}/*.apk
           if-no-files-found: error
+      - name: Upload git APKBUILD (for the daily pin commit)
+        if: inputs.line == 'git' && inputs.arch == 'x86_64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: git-apkbuild
+          path: packages/git/APKBUILD
+          if-no-files-found: error

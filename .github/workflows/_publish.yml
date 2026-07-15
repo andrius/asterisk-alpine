@@ -95,6 +95,27 @@ jobs:
             echo "seeded from live $arch index"
           done
           echo "total seeded files: $seeded"
+      - name: Prune older git snapshots (keep newest per arch)
+        run: |
+          # The git line is versioned <base>_git<YYYYMMDD>, so each daily build
+          # is a new filename and the merge-with-live seed would accumulate old
+          # snapshots. Keep only the newest _git<date> per arch.
+          for arch in x86_64 aarch64 armv7 armhf; do
+            d="repository/v3.24/main/$arch"
+            [ -d "$d" ] || continue
+            newest=$(ls "$d"/asterisk-*_git*-r*.apk 2>/dev/null \
+              | sed -E 's/.*_git([0-9]+)-r[0-9]+\.apk$/\1/' | sort -u | tail -1)
+            [ -n "$newest" ] || continue
+            echo "arch $arch: keeping git snapshot _git$newest"
+            for f in "$d"/asterisk-*_git*-r*.apk; do
+              [ -f "$f" ] || continue
+              d8=$(printf '%s' "$f" | sed -E 's/.*_git([0-9]+)-r[0-9]+\.apk$/\1/')
+              if [ "$d8" != "$newest" ]; then
+                rm -f "$f"
+                echo "  prune $(basename "$f")"
+              fi
+            done
+          done
       - name: Make bind-mounted dirs writable by the container builder
         run: sudo chmod -R a+rwX repository keys
       - name: Build + sign per-arch APKINDEX (shared canonical noarch)
