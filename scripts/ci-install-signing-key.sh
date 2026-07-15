@@ -23,7 +23,7 @@ chmod 644 "keys/$KEY_NAME.pub"
 cat > keys/abuild.conf <<EOF
 PACKAGER_PRIVKEY="/home/builder/.abuild/$KEY_NAME"
 MAINTAINER="Andrius Kairiukstis <k@c0.lt>"
-REPODEST="/home/builder/packages/v3.24"
+REPODEST="/home/builder/packages/${ALPINE_VERSION:-v3.24}"
 EOF
 
 echo "Signing key ready: keys/$KEY_NAME"

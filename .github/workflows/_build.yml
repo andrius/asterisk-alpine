@@ -24,6 +24,10 @@ on:
         required: false
         type: boolean
         default: false
+      alpine_version:
+        required: false
+        type: string
+        default: 'v3.24'
     secrets:
       ABUILD_PRIVATE_KEY:
         required: true
@@ -37,6 +41,7 @@ jobs:
     env:
       ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
+      ALPINE_VERSION: ${{ inputs.alpine_version }}
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU (emulated arches only)
@@ -47,7 +52,7 @@ jobs:
         run: ./scripts/ci-install-signing-key.sh
       - name: Make bind-mounted dirs writable by the container builder
         run: |
-          mkdir -p repository/v3.24/main/${{ inputs.arch }}
+          mkdir -p repository/${{ inputs.alpine_version }}/main/${{ inputs.arch }}
           sudo chmod -R a+rwX packages repository keys
       - name: Build ${{ inputs.line }} (${{ inputs.arch }})
         run: make build-${{ inputs.line }} ARCH=${{ inputs.arch }}
@@ -57,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: apks-${{ inputs.arch }}-${{ inputs.line }}
-          path: repository/v3.24/main/${{ inputs.arch }}/*.apk
+          path: repository/${{ inputs.alpine_version }}/main/${{ inputs.arch }}/*.apk
           if-no-files-found: error
       - name: Upload git APKBUILD (for the daily pin commit)
         if: inputs.line == 'git' && inputs.arch == 'x86_64'
