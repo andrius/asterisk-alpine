@@ -12,6 +12,8 @@ on:
 
 permissions:
   contents: read
+  pages: write      # granted to the reusable _publish.yml job (deploy-pages)
+  id-token: write   # granted to the reusable _publish.yml job (deploy-pages OIDC)
 
 concurrency:
   group: build-edge
@@ -36,5 +38,12 @@ jobs:
       runner: ${{ matrix.runner }}
       platform: ''
       allow_fail: true
+      alpine_version: edge
+    secrets: inherit
+
+  publish:
+    needs: build
+    uses: ./.github/workflows/_publish.yml
+    with:
       alpine_version: edge
     secrets: inherit
