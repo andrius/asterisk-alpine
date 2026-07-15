@@ -17,6 +17,11 @@ on:
         type: choice
         options: [modern, full]
         default: full
+  schedule:
+    # Weekly Mon ~04:23 UTC: rebuild + publish every line so base-image bumps,
+    # dependency and abuild updates roll out without a manual dispatch. Routes
+    # to the full tier (the else branch in setup.pick).
+    - cron: "23 4 * * 1"
 
 permissions:
   contents: read
