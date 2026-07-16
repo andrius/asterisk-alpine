@@ -3,6 +3,18 @@
 **Date:** 2026-07-07
 **Status:** approved (brainstorm), pending implementation plan
 
+> **Superseded (2026-07): publish + hosting target changed.** This document
+> describes the original **GitHub Pages** apk repository (`apk.andrius.mobi`).
+> Publishing has since moved to **Cloudsmith** (`asterisk/alpine`); GitHub Pages and
+> the `apk.andrius.mobi` domain are retired. The multi-arch build + matrix design
+> below still holds - only the publish + hosting target changed. Cloudsmith reads
+> each package's arch from its `.apk` metadata and owns indexing + signing, so the
+> per-arch `APKINDEX` build and the "seed from live / merge" step are no longer used.
+> Current source of truth: the [README](../README.md) and
+> `.github/workflows/_publish.yml`; rationale in the KB decision "apk hosting on
+> Cloudsmith Open-Source, not GitHub Pages" (2026-07-16). Retained as a historical
+> design record.
+
 ## Goal
 
 Extend the Asterisk-on-Alpine buildchain to publish signed apk packages for

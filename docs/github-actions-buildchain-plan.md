@@ -1,5 +1,15 @@
 # GitHub Actions Buildchain Implementation Plan
 
+> **Superseded (2026-07): publish + hosting target changed.** This plan implements
+> the original **GitHub Pages** apk repository (`apk.andrius.mobi`). Publishing has
+> since moved to **Cloudsmith** (`asterisk/alpine`); GitHub Pages and the
+> `apk.andrius.mobi` domain are retired. The build + CI structure below still holds -
+> only the publish task (sign + deploy to Pages) was replaced by a Cloudsmith push
+> (Cloudsmith owns indexing + signing). Current source of truth: the
+> [README](../README.md) and `.github/workflows/_publish.yml`; rationale in the KB
+> decision "apk hosting on Cloudsmith Open-Source, not GitHub Pages" (2026-07-16).
+> Retained as a historical implementation record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** On push/tag, GitHub Actions builds the green Asterisk lines as signed Alpine APKs, smoke-tests each, and publishes one signed repo to GitHub Pages.

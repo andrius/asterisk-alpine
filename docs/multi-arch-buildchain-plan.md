@@ -1,5 +1,17 @@
 # Multi-Architecture Buildchain Implementation Plan
 
+> **Superseded (2026-07): publish + hosting target changed.** This plan implements
+> the original **GitHub Pages** apk repository (`apk.andrius.mobi`). Publishing has
+> since moved to **Cloudsmith** (`asterisk/alpine`); GitHub Pages and the
+> `apk.andrius.mobi` domain are retired. The multi-arch build + matrix work below
+> still holds - only the publish task changed: instead of building one signed
+> per-arch `APKINDEX` and deploying to Pages, CI pushes the built `.apk`s to
+> Cloudsmith, which reads each package's arch from its metadata and owns indexing +
+> signing. Current source of truth: the [README](../README.md) and
+> `.github/workflows/_publish.yml`; rationale in the KB decision "apk hosting on
+> Cloudsmith Open-Source, not GitHub Pages" (2026-07-16). Retained as a historical
+> implementation record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Publish signed apk packages for x86_64, aarch64, armv7, and armhf from the existing GitHub Actions buildchain, served from one repository that apk resolves per client arch automatically.

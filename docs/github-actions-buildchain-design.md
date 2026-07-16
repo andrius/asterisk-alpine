@@ -2,10 +2,20 @@
 name: github-actions-buildchain
 status: approved
 created: 2026-07-06T15:40:00Z
-updated: 2026-07-15T17:34:22Z
+updated: 2026-07-16T13:14:27Z
 ---
 
 # GitHub Actions Buildchain → Signed APK Repo on GitHub Pages
+
+> **Superseded (2026-07): publish + hosting target changed.** This document
+> describes the original **GitHub Pages** apk repository (`apk.andrius.mobi`).
+> Publishing has since moved to **Cloudsmith** (`asterisk/alpine`); GitHub Pages and
+> the `apk.andrius.mobi` domain are retired. The build + CI design below still holds -
+> only the publish + hosting target changed (Cloudsmith owns indexing + signing, so
+> there is no APKINDEX build or Pages deploy in CI). Current source of truth: the
+> [README](../README.md) and `.github/workflows/_publish.yml`; rationale in the KB
+> decision "apk hosting on Cloudsmith Open-Source, not GitHub Pages" (2026-07-16).
+> Retained as a historical design record.
 
 ## Goal
 
