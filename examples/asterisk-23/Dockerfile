@@ -1,4 +1,4 @@
-# Asterisk 23 (current) on Alpine 3.24, installed from https://apk.andrius.mobi.
+# Asterisk 23 (current) on Alpine 3.24, installed from Cloudsmith (asterisk/alpine).
 #
 # Repository pinning (the "@andrius-asterisk" tag) keeps these packages from clashing
 # with Alpine's own asterisk (22.9.x in the main repo) - apk will only take
@@ -10,11 +10,11 @@
 FROM alpine:3.24
 
 # 1. Trust the repository signing key.
-ADD https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub \
-    /etc/apk/keys/packages@asterisk-alpine.rsa.pub
+ADD https://dl.cloudsmith.io/public/asterisk/alpine/cfg/rsa/rsa.25B0C9A992BE0CEF.key \
+    /etc/apk/keys/alpine@asterisk-25B0C9A992BE0CEF.rsa.pub
 
 # 2. Add the repo under a pin tag; "@andrius-asterisk" then selects it explicitly.
-RUN echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
+RUN echo "@andrius-asterisk https://dl.cloudsmith.io/public/asterisk/alpine/alpine/v3.24/main" >> /etc/apk/repositories
 
 # 3. Install Asterisk 23 pinned to our repo (=~23 resolves to 23.4.x), plus the
 #    sample config so it starts, and a couple of common codecs.

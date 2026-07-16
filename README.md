@@ -2,7 +2,8 @@
 
 Signed Alpine Linux **apk packages for multiple Asterisk versions**, built from
 official Alpine APKBUILDs on Alpine 3.24 and published as a ready-to-use apk
-repository at **[apk.andrius.mobi](https://apk.andrius.mobi/)**.
+repository on **[Cloudsmith](https://cloudsmith.io/~asterisk/repos/alpine/)**
+(`asterisk/alpine`).
 
 [![Hosted By: Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=for-the-badge)](https://cloudsmith.com)
 
@@ -19,12 +20,13 @@ resolves packages for the running architecture automatically.
 ## Install
 
 ```sh
-# 1. Trust the signing key
-wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
-  https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub
+# 1. Trust the repository signing key
+wget -O /etc/apk/keys/alpine@asterisk-25B0C9A992BE0CEF.rsa.pub \
+  https://dl.cloudsmith.io/public/asterisk/alpine/cfg/rsa/rsa.25B0C9A992BE0CEF.key
 
 # 2. Add the repo under a pin tag (see "Avoiding conflicts" below)
-echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
+echo "@andrius-asterisk https://dl.cloudsmith.io/public/asterisk/alpine/alpine/v3.24/main" \
+  >> /etc/apk/repositories
 
 # 3. Install the line you want, pinned to this repo
 apk add "asterisk@andrius-asterisk=~23"      # 23.x  current
@@ -36,6 +38,18 @@ apk add "asterisk@andrius-asterisk=~20"      # 20.x
 The **git** line (a build of Asterisk `master`, may be unstable) sorts highest,
 so an unpinned `apk add asterisk@andrius-asterisk` installs it. Pin a version
 as above for a release.
+
+### Alpine edge
+
+The newest lines (22, 23, git) are also built against Alpine **edge** under a
+second pin tag - for early adopters. Edge rolls daily, so these packages are
+unstable. The signing key above covers this too (same Cloudsmith repository).
+
+```sh
+echo "@andrius-asterisk-edge https://dl.cloudsmith.io/public/asterisk/alpine/alpine/edge/main" \
+  >> /etc/apk/repositories
+apk add "asterisk@andrius-asterisk-edge=~23"
+```
 
 ### Avoiding conflicts with Alpine's asterisk
 
@@ -59,8 +73,9 @@ A minimal image is just:
 
 ```dockerfile
 FROM alpine:3.24
-ADD https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub /etc/apk/keys/
-RUN echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories \
+ADD https://dl.cloudsmith.io/public/asterisk/alpine/cfg/rsa/rsa.25B0C9A992BE0CEF.key \
+    /etc/apk/keys/alpine@asterisk-25B0C9A992BE0CEF.rsa.pub
+RUN echo "@andrius-asterisk https://dl.cloudsmith.io/public/asterisk/alpine/alpine/v3.24/main" >> /etc/apk/repositories \
  && apk add --no-cache "asterisk@andrius-asterisk=~23" "asterisk-sample-config@andrius-asterisk=~23"
 CMD ["asterisk", "-fvvv"]
 ```
@@ -76,7 +91,7 @@ any format, to any place, with total confidence.
 
 This repository also contains the full Docker buildchain that produces these
 packages - the `abuild` pipeline, package signing, the multi-version build
-matrix, and the GitHub Actions publish-to-Pages flow. See
+matrix, and the GitHub Actions publish-to-Cloudsmith flow. See
 **[docs/BUILDCHAIN.md](docs/BUILDCHAIN.md)**.
 
 ## License
