@@ -1,4 +1,4 @@
-# Build artifacts — per-version src/pkg dirs and all APK output
+# Build artifacts - per-version src/pkg dirs and all APK output
 packages/*/src/
 packages/*/pkg/
 *.apk
@@ -31,5 +31,4 @@ Thumbs.db
 
 # AI secrets - local only, never committed
 .ai-secrets.md
-.ak-secrets.md
 .ai-local.md
