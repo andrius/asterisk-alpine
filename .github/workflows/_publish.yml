@@ -19,6 +19,8 @@ on:
         required: true
       ABUILD_KEY_NAME:
         required: true
+      CLOUDSMITH_API_KEY:
+        required: false
 
 jobs:
   publish:
@@ -56,6 +58,48 @@ jobs:
             cp "$d"/*.apk "repository/$ALPINE_VERSION/main/$arch/"
           done
           echo "target=$ALPINE_VERSION arches present: $(ls repository/$ALPINE_VERSION/main 2>/dev/null)"
+      - name: Push freshly-built APKs to Cloudsmith
+        env:
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+          CLOUDSMITH_OWNER: asterisk
+          CLOUDSMITH_REPO: alpine
+        run: |
+          if [ -z "$CLOUDSMITH_API_KEY" ]; then
+            echo "CLOUDSMITH_API_KEY not set - skipping Cloudsmith push"; exit 0
+          fi
+          pipx install cloudsmith-cli >/dev/null
+
+          # ALPINE_VERSION is 'v3.24' or 'edge' and maps 1:1 to the Cloudsmith
+          # Alpine release, so the distribution path is alpine/$ALPINE_VERSION.
+          dist="alpine/$ALPINE_VERSION"
+          pushed=0 skipped=0
+
+          push_one() {
+            local file="$1" out
+            if out=$(cloudsmith push alpine \
+                       "$CLOUDSMITH_OWNER/$CLOUDSMITH_REPO/$dist" \
+                       "$file" --no-wait-for-sync 2>&1); then
+              pushed=$((pushed + 1)); echo "pushed: $(basename "$file")"
+            elif printf '%s' "$out" | grep -qiE 'already exists|already present|has already been|duplicate|conflict'; then
+              skipped=$((skipped + 1)); echo "skip:   $(basename "$file") (already on Cloudsmith)"
+            else
+              echo "$out" >&2; echo "FAILED: $file" >&2; return 1
+            fi
+          }
+
+          # Cloudsmith reads each package's architecture from its metadata (the arch
+          # is NOT in the .apk filename), so same-named per-arch packages coexist.
+          # A noarch subpackage built in more than one arch leg is a genuine
+          # duplicate - the second push returns 'already exists' and is skipped.
+          for arch in x86_64 aarch64 armv7 armhf; do
+            d="repository/$ALPINE_VERSION/main/$arch"
+            [ -d "$d" ] || continue
+            for f in "$d"/*.apk; do
+              [ -f "$f" ] || continue
+              push_one "$f"
+            done
+          done
+          echo "Cloudsmith ($dist): pushed=$pushed skipped=$skipped"
       - name: Seed every registry from the live site (merge - do not wipe)
         run: |
           # Reassemble ALL registries each publish (atomic Pages deploy). The target
