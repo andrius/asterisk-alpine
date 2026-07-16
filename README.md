@@ -7,6 +7,11 @@ repository on **[Cloudsmith](https://cloudsmith.io/~asterisk/repos/alpine/)**
 
 [![Hosted By: Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=for-the-badge)](https://cloudsmith.com)
 
+> Curated by **Andrius Kairiukstis** ([andrius.mobi/asterisk](https://andrius.mobi/asterisk)),
+> hosted by Cloudsmith. Independent community builds of Asterisk for Alpine Linux -
+> not affiliated with Sangoma or the official Asterisk project. "Asterisk" is a
+> trademark of Sangoma Technologies.
+
 Available lines (each built and smoke-tested in CI): **23** (current), **22**
 (LTS), **22-cert** (certified), **20**, plus **18 / 16** (LTS, EOL) and the
 **git** line (master snapshot, best-effort). The LTS `22.10` and certified

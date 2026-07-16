@@ -3,6 +3,9 @@
 Ready-to-build Docker images that install Asterisk from
 [Cloudsmith](https://cloudsmith.io/~asterisk/repos/alpine/) (`asterisk/alpine`).
 
+> Curated by [Andrius Kairiukstis](https://andrius.mobi/asterisk) - independent
+> community builds, not affiliated with Sangoma or the official Asterisk project.
+
 | Example | Asterisk | Version |
 |---|---|---|
 | [`asterisk-23/`](asterisk-23/) | 23 (current) | 23.4.x |
