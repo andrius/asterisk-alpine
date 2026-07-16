@@ -1,11 +1,10 @@
 name: publish
 
-# Reusable publisher: collect built APKs, merge with the live repo(s) (never wipe),
-# rebuild + sign the per-arch APKINDEX for EVERY Alpine registry (v3.24 + edge), and
-# deploy the full site to GitHub Pages. Atomic Pages deploys replace the whole site,
-# so each publish reassembles ALL registries: the target (alpine_version input) from
-# this run's artifacts, the others seeded from the live site. Absent registries
-# (HTTP 404) are skipped, so the v3.24 path is unchanged until edge exists.
+# Cloudsmith-only publisher: download the built APKs and push them to the
+# Open-Source Cloudsmith repo asterisk/alpine as Alpine distribution
+# alpine/$ALPINE_VERSION (v3.24 or edge). Cloudsmith owns indexing, signing,
+# CDN and retention - so there is no APKINDEX build, no signing key, and no
+# GitHub Pages deploy.
 
 on:
   workflow_call:
@@ -15,65 +14,30 @@ on:
         type: string
         default: 'v3.24'
     secrets:
-      ABUILD_PRIVATE_KEY:
-        required: true
-      ABUILD_KEY_NAME:
-        required: true
       CLOUDSMITH_API_KEY:
-        required: false
+        required: true
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
     env:
-      ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
-      ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
       ALPINE_VERSION: ${{ inputs.alpine_version }}
+      CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+      CLOUDSMITH_OWNER: asterisk
+      CLOUDSMITH_REPO: alpine
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: actions/configure-pages@v6
-        with:
-          enablement: true
-      - name: Install signing key
-        run: ./scripts/ci-install-signing-key.sh
       - name: Collect built APKs
         uses: actions/download-artifact@v8
         with:
           pattern: apks-*
           path: _artifacts
-      - name: Distribute APKs into the target repo's per-arch dirs
+      - name: Push APKs to Cloudsmith (alpine/${{ inputs.alpine_version }})
         run: |
-          for d in _artifacts/apks-*; do
-            [ -d "$d" ] || continue
-            arch=$(basename "$d" | cut -d- -f2)
-            mkdir -p "repository/$ALPINE_VERSION/main/$arch"
-            cp "$d"/*.apk "repository/$ALPINE_VERSION/main/$arch/"
-          done
-          echo "target=$ALPINE_VERSION arches present: $(ls repository/$ALPINE_VERSION/main 2>/dev/null)"
-      - name: Push freshly-built APKs to Cloudsmith
-        env:
-          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
-          CLOUDSMITH_OWNER: asterisk
-          CLOUDSMITH_REPO: alpine
-        run: |
-          if [ -z "$CLOUDSMITH_API_KEY" ]; then
-            echo "CLOUDSMITH_API_KEY not set - skipping Cloudsmith push"; exit 0
-          fi
           pipx install cloudsmith-cli >/dev/null
-
           # ALPINE_VERSION is 'v3.24' or 'edge' and maps 1:1 to the Cloudsmith
           # Alpine release, so the distribution path is alpine/$ALPINE_VERSION.
           dist="alpine/$ALPINE_VERSION"
           pushed=0 skipped=0
-
           push_one() {
             local file="$1" out
             if out=$(cloudsmith push alpine \
@@ -86,158 +50,10 @@ jobs:
               echo "$out" >&2; echo "FAILED: $file" >&2; return 1
             fi
           }
-
-          # Cloudsmith reads each package's architecture from its metadata (the arch
-          # is NOT in the .apk filename), so same-named per-arch packages coexist.
-          # A noarch subpackage built in more than one arch leg is a genuine
-          # duplicate - the second push returns 'already exists' and is skipped.
-          for arch in x86_64 aarch64 armv7 armhf; do
-            d="repository/$ALPINE_VERSION/main/$arch"
-            [ -d "$d" ] || continue
-            for f in "$d"/*.apk; do
-              [ -f "$f" ] || continue
-              push_one "$f"
-            done
-          done
+          # Cloudsmith reads each package's arch from its metadata, so per-arch
+          # packages coexist; a noarch subpackage built in >1 arch leg is a
+          # duplicate and is skipped.
+          shopt -s nullglob
+          for f in _artifacts/apks-*/*.apk; do push_one "$f"; done
+          [ $((pushed + skipped)) -gt 0 ] || { echo "no .apk artifacts found" >&2; exit 1; }
           echo "Cloudsmith ($dist): pushed=$pushed skipped=$skipped"
-      - name: Seed every registry from the live site (merge - do not wipe)
-        run: |
-          # Reassemble ALL registries each publish (atomic Pages deploy). The target
-          # repo is filled above from this run's artifacts; every registry (the
-          # target's non-rebuilt lines, and the other registry entirely) is seeded
-          # from the live site. Absent registries (404) are skipped.
-          seeded=0
-          for alpine in v3.24 edge; do
-            BASE="https://apk.andrius.mobi/$alpine/main"
-            for arch in x86_64 aarch64 armv7 armhf; do
-              code=$(curl -sSL --retry 3 --retry-delay 3 --retry-connrefused \
-                -o /tmp/idx.tar.gz -w '%{http_code}' "$BASE/$arch/APKINDEX.tar.gz" || echo 000)
-              if [ "$code" = "404" ]; then
-                echo "no live index for $alpine/$arch (first publish or absent); skipping"
-                continue
-              elif [ "$code" != "200" ]; then
-                echo "ERROR: live index for $alpine/$arch returned HTTP $code; aborting to avoid wiping"
-                exit 1
-              fi
-              mkdir -p "repository/$alpine/main/$arch"
-              # filename = P-V.apk; A:noarch packages live under noarch/ on the live
-              # site. Download any this run did not rebuild. Dropped lines (15, 17)
-              # are skipped so they age out.
-              tar -xzOf /tmp/idx.tar.gz APKINDEX 2>/dev/null | awk '
-                BEGIN { RS = ""; FS = "\n" }
-                {
-                  p = ""; v = ""; a = ""
-                  for (i = 1; i <= NF; i++) {
-                    if ($i ~ /^P:/) p = substr($i, 3)
-                    if ($i ~ /^V:/) v = substr($i, 3)
-                    if ($i ~ /^A:/) a = substr($i, 3)
-                  }
-                  if (p == "") next
-                  if (p ~ /^asterisk/ && (v ~ /^15\./ || v ~ /^17\./)) next
-                  print a "\t" p "-" v ".apk"
-                }' > /tmp/seed-list.txt
-              while IFS="$(printf '\t')" read -r a f; do
-                [ -n "$f" ] || continue
-                [ -f "repository/$alpine/main/$arch/$f" ] && continue
-                if [ "$a" = "noarch" ]; then src="$BASE/noarch/$f"; else src="$BASE/$arch/$f"; fi
-                if curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused "$src" -o "repository/$alpine/main/$arch/$f"; then
-                  seeded=$((seeded + 1))
-                else
-                  rm -f "repository/$alpine/main/$arch/$f"
-                fi
-              done < /tmp/seed-list.txt
-            done
-          done
-          echo "total seeded files: $seeded"
-      - name: Prune older git snapshots (keep newest per arch, per registry)
-        run: |
-          for alpine in v3.24 edge; do
-            for arch in x86_64 aarch64 armv7 armhf; do
-              d="repository/$alpine/main/$arch"
-              [ -d "$d" ] || continue
-              newest=$(ls "$d"/asterisk-*_git*-r*.apk 2>/dev/null \
-                | sed -E 's/.*_git([0-9]+)-r[0-9]+\.apk$/\1/' | sort -u | tail -1)
-              [ -n "$newest" ] || continue
-              echo "$alpine/$arch: keeping git snapshot _git$newest"
-              for f in "$d"/asterisk-*_git*-r*.apk; do
-                [ -f "$f" ] || continue
-                d8=$(printf '%s' "$f" | sed -E 's/.*_git([0-9]+)-r[0-9]+\.apk$/\1/')
-                if [ "$d8" != "$newest" ]; then rm -f "$f"; fi
-              done
-            done
-          done
-      - name: Make bind-mounted dirs writable by the container builder
-        run: sudo chmod -R a+rwX repository keys
-      - name: Build + sign per-arch APKINDEX for every registry (shared canonical noarch)
-        run: |
-          docker compose build builder-23
-          for alpine in v3.24 edge; do
-            for arch in x86_64 aarch64 armv7 armhf; do
-              [ -d "repository/$alpine/main/$arch" ] || continue
-              # x86_64 is indexed first per alpine and defines the canonical noarch
-              # set (build-repo-index.sh mirrors A:noarch into main/noarch/); overlay
-              # those into each later arch dir so every index references identical
-              # noarch checksums.
-              if [ -d repository/$alpine/main/noarch ]; then
-                cp -f repository/$alpine/main/noarch/*.apk "repository/$alpine/main/$arch/" 2>/dev/null || true
-              fi
-              docker compose run --rm -e ALPINE_VERSION="$alpine" -e ARCH="$arch" builder-23 \
-                sh /home/builder/scripts/build-repo-index.sh
-            done
-          done
-      - name: Assemble Pages site (every registry)
-        run: |
-          for alpine in v3.24 edge; do
-            [ -d "repository/$alpine/main" ] || continue
-            mkdir -p "_site/$alpine/main"
-            for arch in x86_64 aarch64 armv7 armhf noarch; do
-              [ -d "repository/$alpine/main/$arch" ] && cp -r "repository/$alpine/main/$arch" "_site/$alpine/main/"
-            done
-          done
-          cp "keys/${ABUILD_KEY_NAME:-packages@asterisk-alpine.rsa}.pub" _site/
-          echo "apk.andrius.mobi" > _site/CNAME
-          cat > _site/index.html <<'HTML'
-          <!doctype html>
-          <meta charset=utf-8>
-          <meta name=viewport content="width=device-width, initial-scale=1">
-          <title>Asterisk Alpine APK repository</title>
-          <h1>Asterisk Alpine APK repository</h1>
-          <p>Signed Alpine apk packages for multiple Asterisk versions - x86_64,
-          aarch64, armv7, armhf. Source, docs and Docker examples at
-          <a href="https://github.com/andrius/asterisk-alpine">github.com/andrius/asterisk-alpine</a>
-          (see the <a href="https://github.com/andrius/asterisk-alpine#install">README</a>).</p>
-          <h2>1. Trust the signing key</h2>
-          <pre>wget -O /etc/apk/keys/packages@asterisk-alpine.rsa.pub \
-            https://apk.andrius.mobi/packages@asterisk-alpine.rsa.pub</pre>
-          <h2>2. Add the repository under a pin tag</h2>
-          <pre>echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
-          apk update</pre>
-          <h2>3. Install the line you want (pin the version)</h2>
-          <p>The <code>@andrius-asterisk</code> tag takes asterisk from this repo
-          only (Alpine ships its own); <code>~</code> is a version-prefix match.</p>
-          <pre>apk add "asterisk@andrius-asterisk=~23"      # 23.x  current
-          apk add "asterisk@andrius-asterisk=~22"      # 22.x  LTS (22.10)
-          apk add "asterisk@andrius-asterisk=~22.8"    # 22.8  certified
-          apk add "asterisk@andrius-asterisk=~20"      # 20.x
-          apk add "asterisk@andrius-asterisk=~18"      # 18.x
-          apk add "asterisk@andrius-asterisk=~16"      # 16.x
-          apk add "asterisk@andrius-asterisk=~1.8"     # 1.8
-          apk add "asterisk@andrius-asterisk=~1.6"     # 1.6</pre>
-          <p>The <b>git</b> line is a build of Asterisk <code>master</code> (a
-          development snapshot, may be unstable). It sorts highest, so an
-          unpinned install gets it - pin a version above for a release:</p>
-          <pre>apk add asterisk@andrius-asterisk          # git (master) snapshot</pre>
-          <h2>Alpine edge (volatile)</h2>
-          <p>The newest lines (22, 23, git) are also built against Alpine
-          <b>edge</b> under a second pin tag - for early adopters. Edge rolls
-          daily, so these packages are unstable.</p>
-          <pre>echo "@andrius-asterisk-edge https://apk.andrius.mobi/edge/main" >> /etc/apk/repositories
-          apk add "asterisk@andrius-asterisk-edge=~23"</pre>
-          <p>Why the pin tag matters and per-line details:
-          <a href="https://github.com/andrius/asterisk-alpine#avoiding-conflicts-with-alpines-asterisk">README</a>.</p>
-          HTML
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v5

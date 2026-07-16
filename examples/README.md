@@ -1,7 +1,7 @@
 # Examples
 
 Ready-to-build Docker images that install Asterisk from
-[`https://apk.andrius.mobi`](https://apk.andrius.mobi/).
+[Cloudsmith](https://cloudsmith.io/~asterisk/repos/alpine/) (`asterisk/alpine`).
 
 | Example | Asterisk | Version |
 |---|---|---|
@@ -36,7 +36,7 @@ give our repo a **tag** and reference it explicitly.
 
 ```sh
 # 1. tag the repo (any name; we use "andrius-asterisk")
-echo "@andrius-asterisk https://apk.andrius.mobi/v3.24/main" >> /etc/apk/repositories
+echo "@andrius-asterisk https://dl.cloudsmith.io/public/asterisk/alpine/alpine/v3.24/main" >> /etc/apk/repositories
 
 # 2. install with the tag -> apk can only take asterisk from our repo
 apk add "asterisk@andrius-asterisk=~23"       # 23.x  (current)
