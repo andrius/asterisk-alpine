@@ -143,3 +143,64 @@ jobs:
     if: needs.setup.outputs.publish == 'true'
     uses: ./.github/workflows/_publish.yml
     secrets: inherit
+
+  notify-blog:
+    # New upstream versions published -> add an entry to the andrius.mobi/asterisk
+    # timeline (repository_dispatch to andrius/blog). Fires only for pushes to
+    # main whose range bumps pkgver= in packages/*/APKBUILD (i.e. the discover
+    # bump PRs landing), so weekly rebuilds and infra changes stay silent. The
+    # daily git-line snapshot pins are [skip ci] and packages/git is excluded
+    # here anyway. Skipped when BLOG_DISPATCH_TOKEN is not configured.
+    needs: [publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect new versions and update timeline
+        env:
+          BLOG_DISPATCH_TOKEN: ${{ secrets.BLOG_DISPATCH_TOKEN }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BLOG_DISPATCH_TOKEN" ]; then
+            echo "::notice::BLOG_DISPATCH_TOKEN not set - skipping timeline update"
+            exit 0
+          fi
+          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "::notice::before-commit unavailable (force push?) - skipping"
+            exit 0
+          fi
+          VERSIONS=""
+          for f in $(git diff --name-only "$BEFORE" "$AFTER" -- 'packages/*/APKBUILD' ':(exclude)packages/git/APKBUILD'); do
+            [ -f "$f" ] || continue   # line removed in this push
+            old=$(git show "$BEFORE:$f" 2>/dev/null | sed -n 's/^pkgver=//p' | head -1 || true)
+            new=$(sed -n 's/^pkgver=//p' "$f" | head -1)
+            if [ -n "$new" ] && [ "$new" != "$old" ]; then
+              VERSIONS="$VERSIONS $new"
+            fi
+          done
+          VERSIONS=$(echo "$VERSIONS" | xargs)
+          if [ -z "$VERSIONS" ]; then
+            echo "No pkgver bumps in $BEFORE..$AFTER - nothing to announce"
+            exit 0
+          fi
+          VERSION_LIST=$(echo "$VERSIONS" | sed 's/ /, /g; s/, \([^,]*\)$/ and \1/')
+          TITLE="Alpine apks for Asterisk $VERSION_LIST"
+          PAYLOAD=$(jq -n --arg title "$TITLE" '{
+            event_type: "asterisk-update",
+            client_payload: {
+              title: $title,
+              url: "https://cloudsmith.io/~asterisk/repos/alpine/packages/",
+              tags: "apk,alpine"
+            }
+          }')
+          curl -sfS -X POST \
+            -H "Authorization: Bearer $BLOG_DISPATCH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/andrius/blog/dispatches \
+            -d "$PAYLOAD"
+          echo "Timeline entry sent: $TITLE"
