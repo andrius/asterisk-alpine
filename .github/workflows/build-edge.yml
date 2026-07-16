@@ -12,8 +12,6 @@ on:
 
 permissions:
   contents: read
-  pages: write      # granted to the reusable _publish.yml job (deploy-pages)
-  id-token: write   # granted to the reusable _publish.yml job (deploy-pages OIDC)
 
 concurrency:
   group: build-edge
