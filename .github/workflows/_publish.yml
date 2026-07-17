@@ -37,23 +37,28 @@ jobs:
           # ALPINE_VERSION is 'v3.24' or 'edge' and maps 1:1 to the Cloudsmith
           # Alpine release, so the distribution path is alpine/$ALPINE_VERSION.
           dist="alpine/$ALPINE_VERSION"
-          pushed=0 skipped=0
+          pushed=0
+          # --republish REPLACES a package that already exists at the same
+          # name+version+arch+distro instead of creating a duplicate. WITHOUT it,
+          # `cloudsmith push` still exits 0 for a duplicate, but Cloudsmith FAILS
+          # that copy during server-side sync ("Replace Package w/ Same Version
+          # was not enabled"). Failed copies are never served (404) yet still
+          # pollute the index and shadow the good copy at the apk path - so every
+          # re-run (push to main, weekly rebuild) silently broke downloads. With
+          # --republish, re-runs and any noarch subpackage built in >1 arch leg
+          # (pushed once per leg) are idempotent. Cloudsmith reads each package's
+          # arch from its own metadata, so per-arch packages still coexist.
           push_one() {
-            local file="$1" out
-            if out=$(cloudsmith push alpine \
-                       "$CLOUDSMITH_OWNER/$CLOUDSMITH_REPO/$dist" \
-                       "$file" --no-wait-for-sync 2>&1); then
+            local file="$1"
+            if cloudsmith push alpine \
+                 "$CLOUDSMITH_OWNER/$CLOUDSMITH_REPO/$dist" \
+                 "$file" --republish --no-wait-for-sync; then
               pushed=$((pushed + 1)); echo "pushed: $(basename "$file")"
-            elif printf '%s' "$out" | grep -qiE 'already exists|already present|has already been|duplicate|conflict'; then
-              skipped=$((skipped + 1)); echo "skip:   $(basename "$file") (already on Cloudsmith)"
             else
-              echo "$out" >&2; echo "FAILED: $file" >&2; return 1
+              echo "FAILED: $file" >&2; return 1
             fi
           }
-          # Cloudsmith reads each package's arch from its metadata, so per-arch
-          # packages coexist; a noarch subpackage built in >1 arch leg is a
-          # duplicate and is skipped.
           shopt -s nullglob
           for f in _artifacts/apks-*/*.apk; do push_one "$f"; done
-          [ $((pushed + skipped)) -gt 0 ] || { echo "no .apk artifacts found" >&2; exit 1; }
-          echo "Cloudsmith ($dist): pushed=$pushed skipped=$skipped"
+          [ "$pushed" -gt 0 ] || { echo "no .apk artifacts found" >&2; exit 1; }
+          echo "Cloudsmith ($dist): pushed=$pushed"
