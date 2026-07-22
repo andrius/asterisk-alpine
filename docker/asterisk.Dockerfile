@@ -1,9 +1,13 @@
 # Asterisk PBX runtime image
-# Minimal Alpine-based image for running Asterisk
-FROM alpine:3.22
+# Minimal Alpine-based image for running Asterisk.
+#
+# NOTE: this image installs Alpine's OWN asterisk from the distro repositories -
+# it does NOT install the packages this project builds. It is a convenience
+# runtime container (compose profile `runtime`, `make test-asterisk`), not a
+# test of our output. To exercise a package built here, use `make test-<line>`,
+# which installs from the local repository via docker/test.Dockerfile.
+FROM alpine:3.24
 
-# Add custom repository (will be configured at build time)
-# For now, we'll use the official Alpine packages
 RUN apk add --no-cache \
     asterisk \
     asterisk-sample-config \
