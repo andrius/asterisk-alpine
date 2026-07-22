@@ -256,7 +256,6 @@ shell:
 
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -rf packages/asterisk/src packages/asterisk/pkg
 	@rm -rf packages/22/src packages/22/pkg
 	@rm -rf packages/23/src packages/23/pkg
 	@docker compose run --rm builder-20 sh -c "cd /home/builder/asterisk && abuild clean cleanpkg" || true
