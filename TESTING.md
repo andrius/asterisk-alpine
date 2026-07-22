@@ -4,6 +4,8 @@
 
 ### File Integrity
 - ✅ All 10 required source files present in `packages/asterisk/`
+  *(historical: that directory was removed 2026-07-22; each line now carries its
+  own set under `packages/<line>/`)*
 - ✅ All shell scripts have valid bash syntax
 - ✅ APKBUILD structure is valid (pkgname, pkgver, pkgrel defined)
 - ✅ Docker configurations exist (builder, asterisk, compose)
@@ -178,7 +180,7 @@ apk info asterisk
 **Fix**:
 - Check network connectivity from container
 - Use Alpine mirror if available
-- Download sources manually to packages/asterisk/ directory
+- Download sources manually to the `packages/<line>/` directory
 
 ### Issue 3: Compilation Errors
 **Symptom**: Build fails during compilation
@@ -261,7 +263,7 @@ docker --version || echo "ERROR: Docker not found"
 
 echo ""
 echo "2. Checking files..."
-[ -f packages/asterisk/APKBUILD ] && echo "✓ APKBUILD exists" || echo "✗ APKBUILD missing"
+[ -f packages/20/APKBUILD ] && echo "✓ APKBUILD exists" || echo "✗ APKBUILD missing"
 [ -x scripts/build.sh ] && echo "✓ build.sh executable" || echo "✗ build.sh not executable"
 
 echo ""

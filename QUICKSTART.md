@@ -78,7 +78,7 @@ make info            # Show package info
 ## Next Steps
 
 - Read [README.md](README.md) for detailed documentation
-- Customize `packages/asterisk/APKBUILD` for your needs
+- Customize `packages/<line>/APKBUILD` (e.g. `packages/20/APKBUILD`) for your needs
 - Set up CI/CD for automated builds
 - Deploy repository to production server
 
