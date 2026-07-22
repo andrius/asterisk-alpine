@@ -1,5 +1,14 @@
 # APKBUILD Validation Report
 
+> **Historical (2025-11): describes the original single-package layout.** This
+> report validates `packages/asterisk/APKBUILD` (asterisk 20.11.1-r6 on Alpine
+> 3.22) - the one recipe the repository held before it became a multi-line build
+> matrix. That directory was deleted in 2026-07 (superseded by `packages/20/`),
+> and the base is now Alpine 3.24 with ten lines. Versions, paths and package
+> counts below are accurate for their date and are **not** current.
+> Current source of truth: [README](README.md), `CLAUDE.md` and
+> `buildchain/versions.mk`. Retained as a historical validation record.
+
 **Date:** 2025-11-10
 **Package:** asterisk 20.11.1-r6
 **Source:** Alpine Linux 3.22-stable
