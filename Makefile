@@ -116,7 +116,7 @@ shell-22:
 	docker compose run --rm builder-22 /bin/sh
 
 validate-22:
-	docker compose run --rm builder-22 sh -c "cd /home/builder/asterisk && abuild sanitycheck"
+	docker compose run --rm builder-22 sh -c "cd /home/builder/main/asterisk && abuild sanitycheck"
 
 # --- Asterisk 23.x (current) on Alpine 3.24 ---
 build-23: init-keys
@@ -132,7 +132,7 @@ shell-23:
 	docker compose run --rm builder-23 /bin/sh
 
 validate-23:
-	docker compose run --rm builder-23 sh -c "cd /home/builder/asterisk && abuild sanitycheck"
+	docker compose run --rm builder-23 sh -c "cd /home/builder/main/asterisk && abuild sanitycheck"
 
 # --- Green lines (14/16/18/20/22-cert/1.6/1.8) on Alpine 3.24 ---
 build-20 build-18 build-16 build-22-cert build-14 build-1.8 build-1.6: init-keys
@@ -299,6 +299,6 @@ info:
 	@find repository -name "asterisk*.apk" -type f 2>/dev/null | wc -l || echo "0"
 
 validate:
-	@echo "Validating APKBUILD (20.x)..."
-	docker compose run --rm builder-20 sh -c "cd /home/builder/asterisk && abuild sanitycheck"
+	@echo "Validating APKBUILD (line $(M0_LINE))..."
+	docker compose run --rm builder-$(M0_LINE) sh -c "cd /home/builder/main/asterisk && abuild sanitycheck"
 	@echo "✅ APKBUILD is valid"
