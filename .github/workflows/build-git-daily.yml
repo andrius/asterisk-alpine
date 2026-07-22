@@ -81,12 +81,45 @@ jobs:
         continue-on-error: true   # absent if the git build failed -> no-op below
       - name: Commit and push the new pin
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # The APKBUILD remains the trigger: if the build did not refresh the
+          # pin there is nothing to record.
           git add packages/git/APKBUILD
           if git diff --cached --quiet; then
             echo "no pin change to commit (build did not refresh the APKBUILD)"
             exit 0
           fi
+
+          # Keep buildchain/versions.mk in step with the pin we just took.
+          # Nothing else writes that file, so without this its git row drifts
+          # every time this workflow runs and `make list` reports a snapshot
+          # that is no longer built.
+          PKGVER=$(sed -n 's/^pkgver=//p' packages/git/APKBUILD | head -1)
+          GITREV=$(sed -n 's/^_gitrev=//p' packages/git/APKBUILD | head -1)
+          SHORT=$(printf '%s' "$GITREV" | cut -c1-8)
+          if [ -z "$PKGVER" ] || [ -z "$SHORT" ]; then
+            echo "::error::could not read pkgver/_gitrev from packages/git/APKBUILD"
+            exit 1
+          fi
+
+          awk -v v="$PKGVER" -v s="$SHORT" '
+            $1=="git" && $0 !~ /^#/ {
+              printf "%-8s %-19s %-6s %-8s %s\n", $1, v, $3, $4, "ok:master-snapshot-" s
+              next
+            }
+            { print }
+          ' buildchain/versions.mk > versions.mk.new
+          mv versions.mk.new buildchain/versions.mk
+
+          if ! grep -q "^git .*${PKGVER}.*master-snapshot-${SHORT}" buildchain/versions.mk; then
+            echo "::error::versions.mk git row did not update as expected"
+            exit 1
+          fi
+          echo "versions.mk git row -> ${PKGVER} (master-snapshot-${SHORT})"
+
+          git add buildchain/versions.mk
           git commit -m "git line: pin master snapshot [skip ci]"
           git push
