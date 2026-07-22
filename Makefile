@@ -50,7 +50,7 @@ help:
 	@echo "Build a single Asterisk line:"
 	@echo "  make build-22        Asterisk 22.10.1 (LTS)        on Alpine 3.24"
 	@echo "  make build-23        Asterisk 23.4.1 (current)    on Alpine 3.24"
-	@echo "  make build-20        Asterisk 20.11.1             on Alpine 3.22"
+	@echo "  make build-20        Asterisk 20.20.1 (LTS)        on Alpine 3.24"
 	@echo ""
 	@echo "Build a tier:"
 	@echo "  make build-modern    20 + 22 + 22-cert + 23 (fast)"
@@ -62,7 +62,8 @@ help:
 	@echo "  make build-18        Asterisk 18.26.4 on Alpine 3.24"
 	@echo "  make build-22-cert   Asterisk 22.8.0.3 (certified) on Alpine 3.24"
 	@echo "  make build-git       Asterisk master snapshot on Alpine 3.24"
-	@echo "  make build-14 build-XX (frontier - expected to fail)"
+	@echo "  make build-14        Asterisk 14.7.8 (frontier, builds green)"
+	@echo "  make build-1.8 build-1.6   ancient lines (x86_64 only)"
 	@echo ""
 	@echo "Republish the repo index after builds:"
 	@echo "  make repo-index-22   index the v3.24/main/x86_64 tree"
@@ -73,8 +74,8 @@ help:
 	@echo "  make validate-22     abuild sanitycheck the 22.x APKBUILD"
 	@echo "  make info            show built package counts"
 	@echo ""
-	@echo "Legacy single-version targets (unchanged from M0):"
-	@echo "  make build           full M0 build (docker + keys + packages + index)"
+	@echo "Single-line convenience path (defaults to line 20; set M0_LINE=<line>):"
+	@echo "  make build           docker + keys + packages + index for one line"
 	@echo "  make init-keys  build-docker  build-packages  repo-index"
 	@echo "  make test-asterisk  shell  clean  clean-all"
 	@echo ""
@@ -171,30 +172,41 @@ repo-index-22:
 	@echo "✅ $(ALPINE_VERSION) repo index created"
 
 # ============================================================================
-# Legacy M0 targets (unchanged - single 20.11.1 build on 3.22)
+# Single-line convenience path (one line end to end; default 20 on 3.24)
 # ============================================================================
 
-# Build everything (M0 single-version path)
+# --- Single-line convenience path --------------------------------------------
+# Kept from the original single-package layout, where `build` was the only entry
+# point. It drives one line through the same steps the per-line targets use, so
+# `make build` still works; prefer `build-<line>` when you know which line you
+# want. Override the line with M0_LINE=<line>.
+#
+# The version is read from that line's APKBUILD rather than written here - the
+# previous hardcoded strings ("Alpine 3.22", "Asterisk 20.11.1") outlived the
+# layout they described and became actively misleading.
+M0_LINE   ?= 20
+M0_PKGVER := $(shell sed -n 's/^pkgver=//p' packages/$(M0_LINE)/APKBUILD 2>/dev/null | head -1)
+
 build: build-docker init-keys build-packages repo-index
 	@echo ""
 	@echo "✅ Complete build finished!"
 	@echo ""
 
 build-docker:
-	@echo "Building Docker builder image (Alpine 3.22)..."
-	docker compose build builder-20
+	@echo "Building Docker builder image (line $(M0_LINE), Alpine $(ALPINE_TAG))..."
+	docker compose build builder-$(M0_LINE)
 	@echo "✅ Builder image ready"
 
 build-packages:
-	@echo "Building Asterisk 20.11.1 packages..."
+	@echo "Building Asterisk $(M0_PKGVER) packages (line $(M0_LINE))..."
 	@chmod +x scripts/build.sh
-	docker compose run --rm builder-20 sh /home/builder/scripts/build.sh
+	docker compose run --rm builder-$(M0_LINE) sh /home/builder/scripts/build.sh
 	@echo "✅ Packages built"
 
 repo-index:
-	@echo "Generating repository index (v3.22)..."
+	@echo "Generating repository index ($(ALPINE_VERSION))..."
 	@chmod +x scripts/build-repo-index.sh
-	docker compose run --rm -e ALPINE_VERSION=v3.22 builder-20 \
+	docker compose run --rm -e ALPINE_VERSION=$(ALPINE_VERSION) builder-$(M0_LINE) \
 		sh /home/builder/scripts/build-repo-index.sh
 	@echo "✅ Repository index created"
 
@@ -258,7 +270,9 @@ clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf packages/22/src packages/22/pkg
 	@rm -rf packages/23/src packages/23/pkg
-	@docker compose run --rm builder-20 sh -c "cd /home/builder/asterisk && abuild clean cleanpkg" || true
+	@rm -rf packages/$(M0_LINE)/src packages/$(M0_LINE)/pkg
+	@docker compose run --rm builder-$(M0_LINE) \
+		sh -c "cd /home/builder/main/asterisk && abuild clean cleanpkg" || true
 	@echo "✅ Build artifacts cleaned"
 
 clean-all: clean
