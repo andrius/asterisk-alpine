@@ -1,5 +1,18 @@
 # Validation Report
 
+> **Historical: describes the original single-package layout.** This report
+> covers `packages/asterisk/` (asterisk 20.11.1-r6 on Alpine 3.22, 19
+> subpackages, a `repository/v3.22/` tree) - the state before the repository
+> became a multi-line matrix. That directory was deleted in 2026-07 (superseded
+> by `packages/20/`); the base is now Alpine 3.24 with ten lines, and packages
+> are published to Cloudsmith rather than a local tree.
+>
+> **Do not follow the commands below as current instructions** - `make build`,
+> `make build-packages` and `make repo-index` still exist but now drive one line
+> (default 20) on 3.24. For current testing use `make test-<line>` (e.g.
+> `make test-23`), and see [README](README.md) + `CLAUDE.md`. Retained as a
+> historical pre-flight record.
+
 ## ✅ Pre-Flight Checks (Completed)
 
 ### File Integrity

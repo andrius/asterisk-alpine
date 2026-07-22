@@ -50,7 +50,7 @@ docker exec -it asterisk-pbx asterisk -rvvv
 sudo cp keys/packages@asterisk-alpine.rsa.pub /etc/apk/keys/
 
 # Add repository (replace with your server URL)
-echo "http://your-server/v3.22/main" | sudo tee -a /etc/apk/repositories
+echo "http://your-server/v3.24/main" | sudo tee -a /etc/apk/repositories
 
 # Install
 sudo apk update
@@ -63,7 +63,7 @@ sudo apk add asterisk asterisk-opus asterisk-prometheus
 # Start repository server
 make repo-server
 
-# Access at http://localhost:8080/v3.22/main/x86_64/
+# Access at http://localhost:8080/v3.24/main/x86_64/
 ```
 
 ## Common Commands

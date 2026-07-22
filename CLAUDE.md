@@ -81,10 +81,19 @@ make help               # all targets
 `build-<line>`, `test-<line>` and `shell-<line>` exist for every line;
 `validate-<line>` only for 22 and 23.
 
-The build list itself lives in **`buildchain/versions.mk`** - line, pkgver,
-Alpine base, and a per-line status note (which subpackages are omitted, which
-patches a line needs, module counts for the ancient lines). That file, not this
-table, is the source of truth when they disagree.
+**`buildchain/versions.mk`** lists line, version, Alpine base, and a per-line
+status note (which subpackages are omitted, which patches a line needs, module
+counts for the ancient lines). `make list` renders it. Its status notes are the
+best summary of *why* a line looks the way it does.
+
+> **It is hand-maintained, and nothing keeps it in sync.** No workflow or script
+> writes it - `build-git-daily.yml` and `scripts/discover-releases.sh` bump
+> `packages/<line>/APKBUILD` only. **The APKBUILDs are the source of truth for
+> versions**; `versions.mk` is a status/display file that drifts. The `git` row
+> is stale by construction, since that line is re-pinned daily. Two known
+> mismatches that are *not* drift: `22-cert` is `22.8-cert3` here (upstream
+> naming) but `22.8.0.3` as a pkgver (apk-sortable), and the `git` row lags the
+> current snapshot.
 
 ### Groups
 
@@ -123,11 +132,15 @@ Certified builds report `certified-22.8-certN` rather than the pkgver, so
 `test-22-cert` runs with `RELAXED=1`; `test-1.6`, `test-1.8` and `test-git` do
 too.
 
-> **Legacy `make build` / `build-packages` / `repo-index` targets are stale.**
-> They date from the original single-package layout and still announce
-> "Alpine 3.22" / "Asterisk 20.11.1", with `repo-index` hardcoding
-> `ALPINE_VERSION=v3.22`. They now operate on `builder-20`. Prefer the per-line
-> targets above; treat these as unreconciled.
+### Single-line convenience path
+
+`make build` (= `build-docker` + `init-keys` + `build-packages` + `repo-index`)
+carries one line end to end. It defaults to line 20; override with
+`M0_LINE=<line>`. The announced version is read from that line's APKBUILD, and
+`repo-index` honours `ALPINE_VERSION`, so `ALPINE_VERSION=edge` works here too.
+
+Prefer the per-line targets above when you know which line you want - this path
+exists because it predates them.
 
 ## Publishing (CI, not `make`)
 

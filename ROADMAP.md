@@ -145,7 +145,8 @@ Turn the single-version repo into a version-parameterized buildchain without bre
      fails with `UNTRUSTED signature`. `build.sh` copies the pubkey in before `abuild -r`.
 
 ### M2 - Modern tier complete 🟡 (in progress)
-Ship **18, 20, 22, 23** on current Alpine (3.22 / 3.24 / edge).
+Ship **18, 20, 22, 23** on current Alpine (3.24 stable, edge canary). The 3.22
+base named here originally was dropped when the suite consolidated on 3.24.
 - ✅ **22.10.1 (LTS)** on Alpine 3.24 - builds, signs, indexes; `asterisk -V` →
   `Asterisk 22.10.1`, 306 modules, `chan_pjsip` present, 19 subpackages.
 - ✅ **23.4.1 (current)** on Alpine 3.24 - builds, signs, indexes; `asterisk -V` →
