@@ -5,7 +5,7 @@
 set -e
 
 REPO_DIR="${REPO_DIR:-/home/builder/packages}"
-ALPINE_VERSION="${ALPINE_VERSION:-v3.22}"
+ALPINE_VERSION="${ALPINE_VERSION:-v3.24}"
 ARCH="${ARCH:-x86_64}"
 KEYS_DIR="${KEYS_DIR:-/home/builder/.abuild}"
 
