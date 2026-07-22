@@ -31,7 +31,7 @@ git      24.0.0_git20260722  3.24   target   ok:master-snapshot-e22687d0
 
 # ---- ancient (now GREEN: recursive-mutex + dlclose patches fixed the musl module-load deadlock) ----
 1.8      1.8.32.3            3.24   target   ok:185 modules load,chan_sip works (recursive mutex static init + dlclose loop fix)
-1.6      1.6.2.24            3.24   target   ok:168 modules load,chan_sip works (recursive mutex static init + dlclose loop fix + bundled-AES stub)
+1.6      1.6.2.24            3.24   target   ok:168 modules load,chan_sip works (recursive mutex static init + dlclose loop fix + bundled-AES stub),tds-subpkg-omitted (apk3 cannot select asterisk-tds at this version)
 
 # ---- ARCHITECTURE COVERAGE (see docs/multi-arch-buildchain-design.md) ----
 # native  x86_64, aarch64 : every target line (modern on PR/push, full on tag)

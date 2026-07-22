@@ -14,7 +14,13 @@ set -eu
 
 VER="${ASTERISK_VERSION:?ASTERISK_VERSION must be set}"
 TIMEOUT="${TIMEOUT:-15}"
-PKG="asterisk=${VER}-r0"
+# Fuzzy version match (=~) rather than an exact "=$VER-r0": the pkgrel is not
+# always 0, and hardcoding it made the smoke test fail the moment a line was
+# rebuilt at -r1 with an unrelated error ("asterisk-<newest>: breaks
+# world[asterisk=$VER-r0]"), which reads like a resolution conflict rather than
+# "that pkgrel does not exist". Only the version we just built is in /repo, so
+# matching any pkgrel of it still pins the right package.
+PKG="asterisk=~${VER}"
 
 echo "=== test: asterisk ${VER} on $(cat /etc/alpine-release 2>/dev/null || echo alpine) ==="
 
@@ -27,7 +33,7 @@ install -m644 /keys/packages@asterisk-alpine.rsa.pub /etc/apk/keys/ 2>/dev/null 
 # now that noarch packages are published under noarch/ (apk 3.x fetches noarch
 # packages from <repo>/noarch/). No arch-specific paths needed.
 echo "[2/5] installing asterisk ${VER} (with sample-config) from local repo..."
-apk add --no-cache --repository /repo "asterisk=${VER}-r0" "asterisk-sample-config=${VER}-r0" \
+apk add --no-cache --repository /repo "asterisk=~${VER}" "asterisk-sample-config=~${VER}" \
     >/tmp/apk-install.log 2>&1 || {
     echo "FAIL: apk add failed:"; tail -25 /tmp/apk-install.log; exit 2
 }
