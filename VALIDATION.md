@@ -328,7 +328,7 @@ install="asterisk.pre-install asterisk.pre-upgrade"
 ### Immediate (Can do now):
 ```bash
 # Validate APKBUILD syntax
-cd packages/asterisk
+cd packages/20   # or any line under packages/
 sh -n APKBUILD  # Already passed ✅
 
 # Check file permissions

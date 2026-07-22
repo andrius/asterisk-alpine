@@ -121,7 +121,9 @@ indexes the repo, runs in a test container. Proves the toolchain end-to-end.
 Turn the single-version repo into a version-parameterized buildchain without breaking M0.
 - ✅ `packages/<line>/` per Asterisk line: `packages/22/`, `packages/23/` added (each
   self-contained: APKBUILD + patches + initd/confd/logrotate); `packages/asterisk/` kept
-  as the 20.11.1 reference.
+  as the 20.11.1 reference. *(That reference directory was deleted 2026-07-22 - it had
+  been superseded by `packages/20/` and nothing built it. M0/M1 above describe the
+  layout as it was at the time.)*
 - ✅ `buildchain/versions.mk` - single source of truth mapping
   `line → {asterisk_ver, alpine_base, openssl, pjproject_mode, tier, status}`.
 - ✅ `docker/builder.Dockerfile` parameterized by `ALPINE_VERSION` build-arg (one template).
@@ -152,16 +154,26 @@ Ship **18, 20, 22, 23** on current Alpine (3.22 / 3.24 / edge).
 - **Findings (23.x):** `40-asterisk-cdefs.patch` had a second hunk for
   `utils/db1-ast/include/db.h` which Asterisk 23 removed; the 23.x patch keeps only the
   `main/ast_expr2.c` hunk. (This is the kind of per-line patch drift to expect.)
-- ⬜ Decide **chan_sip policy**: 22/23 dropped it from the default build. For migration
-  safety, **force-enable chan_sip** on all modern lines via menuselect (the aports 3.22
-  recipe already does this). Document pjsip-only as the future.
+- ✅ **chan_sip policy - resolved** (verified 2026-07-22). Not a decision any more:
+  Asterisk **21+ removed chan_sip from the source tree**, so it cannot be enabled on
+  22/22-cert/23/git at all. It is **force-enabled on 20** (`--enable chan_sip`,
+  `packages/20/APKBUILD:152`) and builds on every older line - `versions.mk` records
+  "chan_sip works" for 1.6 and 1.8. pjsip-only is the present, not the future, from 22 up.
 - Per-line `asterisk-opus` codec commit (`_opus_commit`) resolved - the traud/asterisk-opus
   fork is pinned to asterisk-13.7 historically; newer lines need the matching commit.
 - Smoke tests (G5) wired per line.
 - **Acceptance:** four modern repos build green, each runs `asterisk -V` and a SIP register
   test in CI.
 
-### M3 - Repository consolidation & signing ⬜
+### M3 - Repository consolidation & signing ✅
+**Delivered via the Cloudsmith migration (2026-07), not the originally planned
+self-hosted tree.** One signed repository (`asterisk/alpine`) serves every line
+across `alpine/v3.24` + `alpine/edge`; Cloudsmith owns indexing and signing
+(key `25B0C9A992BE0CEF`). Install instructions and a per-line pin guide are in
+`README.md`; the acceptance test - a clean Alpine host installing any one line
+from the public key plus one repo URL - was verified on 2026-07-22 for lines
+from 1.6 through 23. Still open, folded into M6: populating `secfixes:` blocks.
+
 - Unified index across all built lines; per-line `APKINDEX.tar.gz` signed with one key.
 - Public key + install instructions per line; a top-level "choose your version" doc.
 - `secfixes` blocks populated from the CVE history already in the 20.x APKBUILD, extended.
@@ -189,7 +201,16 @@ musl module-load fixes (recursive-mutex static init + dlclose loop) made even
   - 10.x → `6e8ed58d7cee` (10.9.0, last 10.x)
   - 11.x → `2.7-stable` branch (11.25.1) / `372b48e0f1c3` (11.11.1 on master)
 
-### M5 - CI/CD + multi-arch ⬜
+### M5 - CI/CD + multi-arch ✅
+**Delivered.** `ci.yml` runs the modern tier on every push/PR and the full tier
+weekly (Mon) and on dispatch, with 1.6/1.8 gating each run; `build-edge.yml` is
+the weekly Alpine-edge canary; `build-git-daily.yml` rebuilds the master
+snapshot daily and skips when upstream is unchanged; `discover-releases.yml`
+polls upstream and opens a version-bump PR against `buildchain/versions.mk` and
+the APKBUILDs. Arch coverage: x86_64 + aarch64 natively, armv7 + armhf
+(best-effort) for 22/23/22-cert. Publishing to Cloudsmith runs from the shared
+`_publish.yml`, with the signing key supplied from CI secrets.
+
 - GitHub Actions (or equivalent) matrix job: `{line} × {x86_64, aarch64}` via buildx/binfmt.
 - Modern tier on every push; legacy/ancient on tag or manual dispatch (they're slow/fragile).
 - Auto-publish repo artifacts; optional signing key from CI secrets.

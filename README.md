@@ -64,8 +64,38 @@ asterisk from this repository only, and stops `apk upgrade` from silently
 swapping it for Alpine's build. The `=~22.8` version match additionally isolates
 the certified line from the LTS and from Alpine's `22.9`.
 
+**Older lines need one extra step.** The pin tag settles the *core* package on
+every line, but Alpine also ships `asterisk-fax`, `asterisk-odbc` and
+`asterisk-tds` at `22.9`. On a line **older than 22.9** those subpackages lose
+to the higher official version and the install aborts:
+
+```
+ERROR: unable to select packages:
+  asterisk-tds-22.9.0-r0: breaks world[asterisk-tds=1.6.2.24-r0@andrius-asterisk]
+```
+
+Core plus `asterisk-sample-config` installs fine on every line, including 1.6
+and 1.8. If you need the overlapping subpackages on an older line, install them
+from this repository explicitly rather than relying on the tag alone.
+
 Full explanation and per-line details:
 [examples/README.md](examples/README.md#avoiding-conflicts-with-alpines-asterisk).
+
+### Module availability
+
+Every line builds Alpine's default module set, so which modules you get is
+decided by the Asterisk version, not by packaging. Modules live in the **main**
+package unless the table of subpackages splits them out - there is no separate
+package per channel driver.
+
+- **`chan_websocket`** (WebSocket channel driver, for ARI
+  `/channels/externalMedia` without RTP or AudioSocket framing) was added
+  upstream in **23.0.0 / 22.6.0 / 20.16.0**. Present on **23, 22, 20 and git**;
+  absent on 18, 16, 14, 1.8 and 1.6, which predate it. It needs the HTTP server
+  enabled (`http.conf`), like any WebSocket transport.
+- **`chan_sip`** is gone from 22 and later - upstream removed it from the source
+  tree, so PJSIP (`chan_pjsip`) is the only SIP stack there. It still exists and
+  works on 20 and older, including 1.6 and 1.8.
 
 ## Docker examples
 
