@@ -26,6 +26,15 @@ jobs:
       CLOUDSMITH_OWNER: asterisk
       CLOUDSMITH_REPO: alpine
     steps:
+      - name: Check out the prune script
+        # This job otherwise only consumes build artifacts, but the post-publish
+        # prune step needs scripts/prune-git-snapshots.sh from the repo. Sparse
+        # checkout keeps it to just that path. Runs first so download-artifact's
+        # _artifacts/ tree (added afterwards) is untouched.
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts
+          sparse-checkout-cone-mode: false
       - name: Collect built APKs
         uses: actions/download-artifact@v8
         with:
@@ -62,3 +71,16 @@ jobs:
           for f in _artifacts/apks-*/*.apk; do push_one "$f"; done
           [ "$pushed" -gt 0 ] || { echo "no .apk artifacts found" >&2; exit 1; }
           echo "Cloudsmith ($dist): pushed=$pushed"
+      - name: Prune superseded git snapshots (this distribution only)
+        # The git line republishes a fresh 24.0.0_git<date> on every master
+        # change; nothing removed the previous one (Cloudsmith retention is a
+        # paid feature, 402 on the OSS plan), so snapshots accumulated ~31
+        # packages per build. This keeps only the newest per distribution.
+        # Release lines are never touched - only "_git" versions are eligible.
+        # Non-fatal: a prune hiccup must not fail an otherwise-good publish.
+        continue-on-error: true
+        env:
+          KEEP_GIT_SNAPSHOTS: '1'
+        run: |
+          KEEP="$KEEP_GIT_SNAPSHOTS" \
+            sh scripts/prune-git-snapshots.sh
