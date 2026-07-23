@@ -3,8 +3,10 @@ name: build-git-daily
 # Daily build of the Asterisk master ("git") snapshot for Alpine 3.24, SKIPPED
 # when upstream master is unchanged since the last build. Implements #4
 # (Stage 2) on the reusable-workflow foundation: calls _build.yml + _publish.yml.
-# Publish prunes older _git snapshots (replace, not accumulate) and the new pin
-# (_gitrev/pkgver/sha512sums) is committed back to main as the skip baseline.
+# _publish.yml prunes older _git snapshots from this distribution after pushing
+# (keep newest; scripts/prune-git-snapshots.sh), so snapshots do not accumulate.
+# The new pin (_gitrev/pkgver/sha512sums) is committed back to main as the skip
+# baseline.
 # Stage 3 adds an Alpine-edge canary leg.
 
 on:
