@@ -8,7 +8,7 @@
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
 pkgver=22.8.0.3
-pkgrel=0
+pkgrel=1
 pkgdesc="Modular Open Source PBX System (Certified Asterisk 22.8-cert3)"
 pkgusers="asterisk"
 pkggroups="asterisk"
@@ -23,7 +23,6 @@ makedepends="
 	bsd-compat-headers
 	curl-dev
 	findutils
-	freetds-dev
 	imap-dev
 	jansson-dev
 	libcap-dev
@@ -75,7 +74,6 @@ subpackages="
 # Alpine 3.24 (verified by inspecting the [LD] module output):
 #  - pgsql : libpq 18 dropped pg_encoding_to_char (configure check fails)
 #  - ldap  : res_config_ldap not selected at menuselect despite openldap-dev
-#  - tds   : FreeTDS modules don't build
 #  - prometheus : 20.x+-only feature
 # Newer Asterisk (22.10+/23+) builds all of these fine on the same base.
 # (Alpine 3.24): the pgsql configure check fails and the ldap module doesn't
@@ -131,7 +129,6 @@ build() {
 		--with-newt \
 		--with-unixodbc \
 		--with-postgres \
-		--with-tds \
 		--with-resample \
 		--with-ldap \
 		--with-sqlite3 \

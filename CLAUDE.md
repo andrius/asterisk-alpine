@@ -200,32 +200,18 @@ and 1.8 load all modules at all.
 
 Alpine's own `main` repo ships `asterisk` **22.9** plus `-fax`/`-odbc`/`-tds`,
 so the package names overlap with ours. The `@andrius-asterisk` pin tag resolves
-that overlap on every line **except one case**: `apk-tools 3` cannot select
-`asterisk-tds=1.6.2.24-r0` and aborts with
+that overlap for every package this repo ships.
 
-```
-asterisk-tds-22.9.0-r0: breaks world[asterisk-tds=1.6.2.24-r0@andrius-asterisk]
-```
-
-**Do not try to fix this with pinning.** `@tag`, `=version`, `--repository`,
-seeding `world`, disabling `main`, and pre-installing `freetds` all fail
-identically - it is an apk3 solver limitation, not a repository-priority
-problem. The workaround is to omit `asterisk-tds` on the 1.6 line.
-
-The blast radius is exactly one package at one version. Verified on a clean
-`alpine:3.24` (apk-tools 3.0.6) on 2026-07-22:
-
-- `asterisk-tds` installs fine at **1.8.32.3, 16.30.1, 20.20.1**
-- `asterisk`, `-fax`, `-odbc`, `-sample-config`, `-sounds-en` install fine at
-  **1.6.2.24**
-- only `asterisk-tds` at **1.6.2.24** fails
-
-> An earlier version of this note claimed every line older than 22.9 lost the
-> overlapping subpackages to the official build. That is **wrong** - 1.8 and 16
-> resolve `asterisk-tds` without trouble. Do not reintroduce that explanation.
+**This repo does not ship `asterisk-tds` on any line.** The TDS modules
+(`cdr_tds`, `cel_tds` - CDR/CEL logging to MSSQL/Sybase via FreeTDS) are omitted
+everywhere: they are not in the call path, and `apk-tools 3` cannot reliably
+select `asterisk-tds` against Alpine's overlapping `asterisk` build (a solver
+limitation, not a packaging fault - `@tag`, `=version`, `--repository`, seeding
+`world`, disabling `main` and pre-installing `freetds` all fail identically).
+For MSSQL/Sybase logging, install `asterisk-odbc` with a FreeTDS ODBC driver.
 
 The in-repo smoke test is unaffected: it installs via `--repository /repo` with
-exact pins and does not pull the `-tds` subpackage.
+exact pins and never pulled the `-tds` subpackage.
 
 `chan_websocket` (upstream 20.16.0 / 22.6.0 / 23.0.0) is present on 20, 22, 23
 and git; absent on 18, 16, 14, 1.8, 1.6. It ships in the main package - there is
