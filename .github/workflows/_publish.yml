@@ -46,31 +46,84 @@ jobs:
           # ALPINE_VERSION is 'v3.24' or 'edge' and maps 1:1 to the Cloudsmith
           # Alpine release, so the distribution path is alpine/$ALPINE_VERSION.
           dist="alpine/$ALPINE_VERSION"
-          pushed=0
+
+          # Consumer contract (#39): the consumer pins, per arch, the main
+          # package AND every subpackage to the SAME pkgver in one `apk add`. The
+          # exact pin is the consumer's only guarantor of a matched module set
+          # (subpackages carry no `depend: asterisk=<ver>`), so a pkgver must be
+          # installable as a COMPLETE set on each arch - no window where
+          # `asterisk=<ver>` is resolvable but a subpackage at the same pkgver is
+          # not.
+          #
+          # Cloudsmith has no batch/atomic Alpine publish: each `cloudsmith push`
+          # uploads one .apk and the server indexes it asynchronously. We
+          # therefore publish each pkgver set in two phases:
+          #   1. push every SUBPACKAGE with --no-wait-for-sync (their order
+          #      relative to each other is irrelevant);
+          #   2. push the MAIN `asterisk-<ver>.apk` LAST, WITHOUT
+          #      --no-wait-for-sync so `cloudsmith push` blocks until Cloudsmith
+          #      has synced it. The main package is the gate: by the time
+          #      `asterisk=<ver>` becomes resolvable, its earlier-uploaded
+          #      subpackages at the same pkgver are already indexed.
+          # Each push is RETRIED. Under this job's `set -e`, a single un-retried
+          # Cloudsmith hiccup used to abort the loop with a PARTIAL set already
+          # live (main uploaded, a subpackage not), and the missing subpackage
+          # only reappeared on the next full run hours later (#39 failure mode 1;
+          # also the vanish/reappear in mode 2, which is NOT pruning - the prune
+          # step only ever deletes _git versions).
+          #
           # --republish REPLACES a package that already exists at the same
           # name+version+arch+distro instead of creating a duplicate. WITHOUT it,
           # `cloudsmith push` still exits 0 for a duplicate, but Cloudsmith FAILS
-          # that copy during server-side sync ("Replace Package w/ Same Version
-          # was not enabled"). Failed copies are never served (404) yet still
-          # pollute the index and shadow the good copy at the apk path - so every
-          # re-run (push to main, weekly rebuild) silently broke downloads. With
-          # --republish, re-runs and any noarch subpackage built in >1 arch leg
-          # (pushed once per leg) are idempotent. Cloudsmith reads each package's
-          # arch from its own metadata, so per-arch packages still coexist.
-          push_one() {
-            local file="$1"
-            if cloudsmith push alpine \
-                 "$CLOUDSMITH_OWNER/$CLOUDSMITH_REPO/$dist" \
-                 "$file" --republish --no-wait-for-sync; then
-              pushed=$((pushed + 1)); echo "pushed: $(basename "$file")"
-            else
-              echo "FAILED: $file" >&2; return 1
-            fi
-          }
+          # that copy during server-side sync; failed copies 404 yet shadow the
+          # good copy. With --republish, re-runs and noarch subpackages built in
+          # >1 arch leg are idempotent.
+
           shopt -s nullglob
-          for f in _artifacts/apks-*/*.apk; do push_one "$f"; done
-          [ "$pushed" -gt 0 ] || { echo "no .apk artifacts found" >&2; exit 1; }
-          echo "Cloudsmith ($dist): pushed=$pushed"
+          # Split into subpackages (asterisk-<name>-...) and the main package
+          # (asterisk-<pkgver>-..., pkgver starts with a digit). Noarch
+          # subpackages (-doc, -sounds-en, ...) are built per arch leg but their
+          # filenames still start `asterisk-<letter>`, so they classify as SUBS.
+          SUBS=(); MAINS=()
+          for f in _artifacts/apks-*/*.apk; do
+            case "$(basename "$f")" in
+              asterisk-[0-9]*) MAINS+=("$f") ;;
+              asterisk-[a-z]*) SUBS+=("$f")  ;;
+              *) echo "::warning::unexpected file, skipping: $(basename "$f")" ;;
+            esac
+          done
+          [ "${#MAINS[@]}" -gt 0 ] || { echo "no main asterisk .apk found" >&2; exit 1; }
+
+          # push_one <file> <wait>: retry transient failures so a single hiccup
+          # can no longer leave a pkgver's set half-published. wait=1 drops
+          # --no-wait-for-sync (the cloudsmith CLI default is to wait for sync).
+          push_one() {
+            local file="$1" wait="$2" attempt=0
+            local args=(--republish)
+            [ "$wait" = "1" ] || args+=(--no-wait-for-sync)
+            while :; do
+              attempt=$((attempt + 1))
+              if cloudsmith push alpine \
+                   "$CLOUDSMITH_OWNER/$CLOUDSMITH_REPO/$dist" \
+                   "$file" "${args[@]}"; then
+                echo "pushed: $(basename "$file")"; return 0
+              fi
+              if [ "$attempt" -ge 3 ]; then
+                echo "::error::FAILED after $attempt tries: $file" >&2
+                return 1
+              fi
+              echo "::warning::push failed (try $attempt/3), retrying: $(basename "$file")" >&2
+              sleep "$((attempt * 10))"
+            done
+          }
+
+          # Phase 1: subpackages first (no-wait).
+          for f in "${SUBS[@]}"; do push_one "$f" 0; done
+          # Phase 2: main package last, gated on Cloudsmith sync.
+          for f in "${MAINS[@]}"; do push_one "$f" 1; done
+
+          total=$(( ${#SUBS[@]} + ${#MAINS[@]} ))
+          echo "Cloudsmith ($dist): pushed=$total (subpackages=${#SUBS[@]} main=${#MAINS[@]})"
       - name: Prune superseded git snapshots (this distribution only)
         # The git line republishes a fresh 24.0.0_git<date> on every master
         # change; nothing removed the previous one (Cloudsmith retention is a
