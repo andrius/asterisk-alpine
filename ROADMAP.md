@@ -38,7 +38,7 @@ Every row attempted on Alpine 3.24. `result` is the outcome of that attempt.
 |----------|------|-------------------|-----|----------------|-------|
 | **23** | Standard | 23.4.1 | current | ✅ ok | 19 APKs, verified |
 | **22** | LTS | 22.10.1 | current LTS | ✅ ok | 19 APKs, verified |
-| **22-cert** | Certified LTS | 22.8-cert3 | current certified | ✅ ok | 15 APKs (pgsql/ldap/tds/prometheus subpkgs omitted - modules don't build on libpq 18 / certified 22.8) |
+| **22-cert** | Certified LTS | 22.8-cert3 | current certified | ✅ ok | 15 APKs (pgsql/ldap/prometheus subpkgs omitted - modules don't build on libpq 18 / certified 22.8) |
 | **20** | LTS | 20.20.1 | SFO 2026-10 | ✅ ok | 20 APKs, verified |
 | **18** | LTS | 18.26.4 | sec-only → 2026-10 | ✅ ok | 17 APKs (pgsql/ldap/prometheus omitted); DAHDI/libpri dropped from aports, disabled in configure |
 | **16** | Certified LTS | 16.30.1 | EOL 2023 | ✅ ok | 17 APKs, verified |

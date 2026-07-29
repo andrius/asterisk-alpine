@@ -64,29 +64,15 @@ asterisk from this repository only, and stops `apk upgrade` from silently
 swapping it for Alpine's build. The `=~22.8` version match additionally isolates
 the certified line from the LTS and from Alpine's `22.9`.
 
-**One known exception: `asterisk-tds` on the 1.6 line.** `apk-tools 3` cannot
-select `asterisk-tds=1.6.2.24-r0` and aborts:
+**No `asterisk-tds` subpackage.** This repo does not build or ship
+`asterisk-tds` on any line - the TDS modules (`cdr_tds`, `cel_tds`, which log
+CDR/CEL to MSSQL/Sybase via FreeTDS) are omitted everywhere. They are not in
+the call path, and `apk-tools 3` cannot reliably select `asterisk-tds` against
+Alpine's own overlapping `asterisk` build (a solver limitation, not a
+packaging fault; `@tag`, `=version` and `--repository` all fail identically).
+For MSSQL/Sybase logging, install `asterisk-odbc` with a FreeTDS ODBC driver.
 
-```
-ERROR: unable to select packages:
-  asterisk-tds-22.9.0-r0: breaks world[asterisk-tds=1.6.2.24-r0@andrius-asterisk]
-```
-
-This is a solver limitation, not a packaging fault, and **repository pinning
-does not work around it** - `@tag`, `=version` and `--repository` all fail
-identically. Omit `asterisk-tds` when installing the 1.6 line; the module is
-the MSSQL/TDS connector, and nothing else is affected.
-
-The scope is exactly one package at one version (verified on a clean
-`alpine:3.24`, apk-tools 3.0.6):
-
-| Install | Result |
-|---|---|
-| `asterisk-tds` at `1.8.32.3`, `16.30.1`, `20.20.1` | ✅ |
-| `asterisk`, `-fax`, `-odbc`, `-sample-config`, `-sounds-en` at `1.6.2.24` | ✅ |
-| `asterisk-tds` at `1.6.2.24` | ❌ |
-
-Every other line and subpackage resolves normally through the pin tag.
+Every line and subpackage this repo ships resolves normally through the pin tag.
 
 Full explanation and per-line details:
 [examples/README.md](examples/README.md#avoiding-conflicts-with-alpines-asterisk).

@@ -38,7 +38,7 @@ Each line is split into the standard Alpine Asterisk subpackages, e.g.:
 
 **Core:** `asterisk`, `asterisk-dev`, `asterisk-doc`, `asterisk-sample-config`
 **Codecs:** `asterisk-opus`, `asterisk-speex`
-**Database & directory:** `asterisk-pgsql`, `asterisk-ldap`, `asterisk-odbc`, `asterisk-tds`
+**Database & directory:** `asterisk-pgsql`, `asterisk-ldap`, `asterisk-odbc`
 **Features:** `asterisk-curl`, `asterisk-fax`, `asterisk-mobile`, `asterisk-srtp`, `asterisk-alsa`, `asterisk-prometheus`
 **Media:** `asterisk-sounds-moh`, `asterisk-sounds-en`
 **System:** `asterisk-openrc`

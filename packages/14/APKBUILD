@@ -22,7 +22,6 @@ makedepends="
 	bsd-compat-headers
 	curl-dev
 	findutils
-	freetds-dev
 	imap-dev
 	jansson-dev
 	libcap-dev
@@ -61,7 +60,6 @@ subpackages="
 	$pkgname-dev
 	$pkgname-doc
 	$pkgname-odbc
-	$pkgname-tds
 	$pkgname-fax
 	$pkgname-sample-config:config:noarch
 	$pkgname-sounds-moh:sound_moh:noarch
@@ -121,7 +119,6 @@ build() {
 		--with-newt \
 		--with-unixodbc \
 		--with-postgres \
-		--with-tds \
 		--with-resample \
 		--with-sqlite3 \
 		--with-speex \
@@ -181,7 +178,6 @@ package() {
 }
 
 odbc() { amove usr/lib/asterisk/modules/*_odbc*; }
-tds() { amove usr/lib/asterisk/modules/*_tds*; }
 fax() { amove usr/lib/asterisk/modules/*_fax*; }
 mobile() { amove usr/lib/asterisk/modules/*_mobile*; }
 _curl() { amove usr/lib/asterisk/modules/*_curl*; }
