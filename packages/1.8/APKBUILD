@@ -11,7 +11,7 @@
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
 pkgver=1.8.32.3
-pkgrel=0
+pkgrel=1
 pkgdesc="Modular Open Source PBX System (1.8 LTS, EOL - with MP3/ooh323 addons)"
 pkgusers="asterisk"
 pkggroups="asterisk"

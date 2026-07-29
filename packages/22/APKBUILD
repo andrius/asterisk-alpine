@@ -4,7 +4,7 @@
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
 pkgver=22.10.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Modular Open Source PBX System (22.x LTS)"
 pkgusers="asterisk"
 pkggroups="asterisk"

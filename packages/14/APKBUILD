@@ -7,7 +7,7 @@
 # Contributor: Timo Teras <timo.teras@iki.fi>
 pkgname=asterisk
 pkgver=14.7.8
-pkgrel=0
+pkgrel=1
 pkgdesc="Modular Open Source PBX System (14.x, EOL)"
 pkgusers="asterisk"
 pkggroups="asterisk"

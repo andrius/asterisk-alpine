@@ -8,7 +8,7 @@
 pkgname=asterisk
 pkgver=24.0.0_git20260728
 _gitrev=7c60726df1cd500dade6db233fabf9fbcc76cd50
-pkgrel=0
+pkgrel=1
 pkgdesc="Modular Open Source PBX System (master/git snapshot)"
 pkgusers="asterisk"
 pkggroups="asterisk"
