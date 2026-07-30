@@ -64,8 +64,14 @@ jobs:
             {line:$l, arch:"x86_64",  runner:"ubuntu-latest",    platform:"", allow_fail:false},
             {line:$l, arch:"aarch64", runner:"ubuntu-24.04-arm", platform:"", allow_fail:false} ]')
 
-          # 32-bit arches: full tier only, lines 22/23/22-cert, best-effort.
-          if [ "$TIER" = "full" ]; then
+          # 32-bit arches (armv7/armhf under QEMU), lines 22/23/22-cert. Built
+          # on every publish-bearing run (push to main, schedule, dispatch) so
+          # their apks land on Cloudsmith on the same cadence as the native
+          # arches - not only the weekly full tier. Best-effort (allow_fail): a
+          # flaky QEMU leg doesn't block the run or the other arches' publish,
+          # it just retries next run. Skipped on PRs (PUBLISH=false) to keep PR
+          # CI fast. Lines 22/23/22-cert are present in every tier.
+          if [ "$PUBLISH" = "true" ]; then
             ARM32=$(jq -cn '[ ["22","23","22-cert"][] as $l |
               {line:$l, arch:"armv7", runner:"ubuntu-latest", platform:"linux/arm/v7", allow_fail:true},
               {line:$l, arch:"armhf", runner:"ubuntu-latest", platform:"linux/arm/v6", allow_fail:true} ]')
