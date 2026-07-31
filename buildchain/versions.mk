@@ -1,10 +1,16 @@
 # versions.mk - the Asterisk build list for the suite.
 #
-# STRATEGY: ONE Alpine base (3.24, latest) for every Asterisk version. The
-# deliverable is the failure frontier - which versions survive the modern
-# toolchain (OpenSSL 3, musl, gcc 15) and which break, with the break
+# STRATEGY: every Asterisk version builds on the current stable Alpine base
+# (see buildchain/alpine-bases.env, sourced by ci.yml). When a new Alpine
+# release ships it becomes STABLE and the prior one moves to PREVIOUS for an
+# overlap window - both bases then build every line - until the old one is
+# retired. The deliverable is the failure frontier: which versions survive the
+# modern toolchain (OpenSSL 3, musl, gcc 15) and which break, with the break
 # documented per line. No period-appropriate bases; old versions are attempted
-# on 3.24 and recorded as build-or-break.
+# on the current base and recorded as build-or-break.
+#
+# The <alpine> column below is informational (the base a line was last verified
+# on); the LIVE set of bases is alpine-bases.env, not this file.
 #
 # Format (space-separated, comments start with #):
 #   <line>   <asterisk_ver>      <alpine>  <status>   <result>
