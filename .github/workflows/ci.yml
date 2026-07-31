@@ -37,9 +37,18 @@ jobs:
       matrix: ${{ steps.pick.outputs.matrix }}
       publish: ${{ steps.pick.outputs.publish }}
       tier: ${{ steps.pick.outputs.tier }}
+      publish_bases: ${{ steps.pick.outputs.publish_bases }}
     steps:
+      - uses: actions/checkout@v7
       - id: pick
         run: |
+          # Alpine bases come from a single source of truth so the matrix, the
+          # publish job and discover-alpine.yml never drift (see buildchain/
+          # alpine-bases.env). PUBLISH_BASES = STABLE + PREVIOUS (overlap window).
+          . ./buildchain/alpine-bases.env
+          [ -n "$STABLE" ] || { echo "::error::STABLE not set in alpine-bases.env"; exit 1; }
+          PUBLISH_BASES=$(printf '%s\n%s\n' "$STABLE" "$PREVIOUS" | sed '/^$/d' | jq -R . | jq -s .)
+
           EVENT='${{ github.event_name }}'
           INPUT_TIER='${{ github.event.inputs.tier }}'
           REF='${{ github.ref }}'
@@ -96,9 +105,16 @@ jobs:
             {line:$l, arch:"x86_64", runner:"ubuntu-latest", platform:"", allow_fail:false} ]')
 
           INCLUDE=$(jq -cn --argjson a "$NATIVE" --argjson b "$ARM32" --argjson c "$GITLINES" --argjson d "$ANCIENT" '$a + $b + $c + $d')
-          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
-          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
-          echo "tier=$TIER" >> "$GITHUB_OUTPUT"
+          # Cross-product the line x arch set with the publishable bases so the
+          # whole suite builds on STABLE every run and on PREVIOUS during an
+          # overlap window. With PREVIOUS empty (today) this is a single base.
+          INCLUDE=$(echo "$INCLUDE" | jq -c --argjson bases "$PUBLISH_BASES" '[ $bases[] as $b | .[] | . + {alpine_version:$b} ]')
+          {
+            echo "matrix={\"include\":$INCLUDE}"
+            echo "publish=$PUBLISH"
+            echo "tier=$TIER"
+            echo "publish_bases=$PUBLISH_BASES"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     needs: setup
@@ -112,6 +128,7 @@ jobs:
       runner: ${{ matrix.runner }}
       platform: ${{ matrix.platform }}
       allow_fail: ${{ matrix.allow_fail }}
+      alpine_version: ${{ matrix.alpine_version }}
     secrets: inherit
 
   frontier:
@@ -131,23 +148,34 @@ jobs:
       - uses: docker/setup-buildx-action@v4
       - name: Install signing key
         run: ./scripts/ci-install-signing-key.sh
+      - name: Resolve stable base
+        id: base
+        run: |
+          . ./buildchain/alpine-bases.env
+          echo "stable=$STABLE" >> "$GITHUB_OUTPUT"
       - name: Make bind-mounted dirs writable by the container builder
         run: |
-          mkdir -p repository/v3.24/main/x86_64
+          mkdir -p repository/${{ steps.base.outputs.stable }}/main/x86_64
           sudo chmod -R a+rwX packages repository keys
       - name: Attempt build ${{ matrix.line }} (expected to fail)
-        run: make build-${{ matrix.line }}
+        run: make build-${{ matrix.line }} ALPINE_VERSION=${{ steps.base.outputs.stable }}
       - name: Upload APKs
         uses: actions/upload-artifact@v7
         with:
-          name: apks-x86_64-14
-          path: repository/v3.24/main/x86_64/*.apk
+          name: apks-${{ steps.base.outputs.stable }}-x86_64-${{ matrix.line }}
+          path: repository/${{ steps.base.outputs.stable }}/main/x86_64/*.apk
           if-no-files-found: ignore
 
   publish:
     needs: [setup, build]
     if: needs.setup.outputs.publish == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        alpine_version: ${{ fromJson(needs.setup.outputs.publish_bases) }}
     uses: ./.github/workflows/_publish.yml
+    with:
+      alpine_version: ${{ matrix.alpine_version }}
     secrets: inherit
 
   notify-blog:

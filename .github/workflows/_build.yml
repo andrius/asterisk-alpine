@@ -61,7 +61,9 @@ jobs:
       - name: Upload APKs
         uses: actions/upload-artifact@v7
         with:
-          name: apks-${{ inputs.arch }}-${{ inputs.line }}
+          # Name carries the base so STABLE and PREVIOUS legs of the same
+          # line/arch (an overlap window) never overwrite each other.
+          name: apks-${{ inputs.alpine_version }}-${{ inputs.arch }}-${{ inputs.line }}
           path: repository/${{ inputs.alpine_version }}/main/${{ inputs.arch }}/*.apk
           if-no-files-found: error
       - name: Upload git APKBUILD (for the daily pin commit)

@@ -38,7 +38,10 @@ jobs:
       - name: Collect built APKs
         uses: actions/download-artifact@v8
         with:
-          pattern: apks-*
+          # Scoped to this base so a STABLE publish never picks up a PREVIOUS
+          # leg's apks from the same run (overlap window). Matches _build.yml's
+          # apks-<alpine_version>-<arch>-<line> naming.
+          pattern: apks-${{ inputs.alpine_version }}-*
           path: _artifacts
       - name: Push APKs to Cloudsmith (alpine/${{ inputs.alpine_version }})
         run: |
