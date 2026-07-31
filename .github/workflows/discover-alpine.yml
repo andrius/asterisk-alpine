@@ -1,0 +1,39 @@
+name: discover-alpine
+
+# Daily: detect a stable Alpine MINOR release newer than the pinned STABLE in
+# buildchain/alpine-bases.env (by scraping dl-cdn.alpinelinux.org). When one
+# appears, open ONE GitHub issue to notify in person - the buildchain migration
+# stays a human job (the per-line musl/OpenSSL/gcc breakage a new base causes is
+# not known until it builds). When STABLE catches up to the newest release, the
+# stale issue auto-closes. Phase 1 of the Alpine-version automation plan.
+
+on:
+  schedule:
+    - cron: "13 5 * * *"   # daily ~05:13 UTC, off the round hour
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write   # open / close / comment on the notification issue
+
+concurrency:
+  group: discover-alpine
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Detect new Alpine release
+        id: det
+        run: ./scripts/discover-alpine.sh
+      - name: Notify or reconcile via issue
+        if: steps.det.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./scripts/notify-alpine-release.sh \
+            '${{ steps.det.outputs.new }}' \
+            '${{ steps.det.outputs.stable }}' \
+            '${{ steps.det.outputs.newest }}'
