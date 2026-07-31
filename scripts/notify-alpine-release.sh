@@ -27,6 +27,8 @@ DRY_RUN=0
 NEW="${1:-}"
 STABLE="${2:-}"
 NEWEST="${3:-}"
+PR_URL="${4:-}"   # optional: the draft PR opened by open-alpine-bump-pr.sh
+RUN_URL="${5:-}"   # optional: the validation-build run URL
 LABEL=alpine-bump
 
 # Idempotent scoping-label creation (write - guarded by DRY_RUN).
@@ -63,6 +65,13 @@ Source: https://dl-cdn.alpinelinux.org/alpine/
 Detected by the discover-alpine.yml workflow. This issue auto-closes once STABLE tracks $NEW.
 EOF
 )
+  # Phase 2 links (present only when called from the propose job).
+  if [ -n "$PR_URL" ]; then body="${body}
+
+Draft PR (buildchain change): $PR_URL"; fi
+  if [ -n "$RUN_URL" ]; then body="${body}
+
+Validation build (modern tier on $NEW): $RUN_URL"; fi
   if [ "$DRY_RUN" = 1 ]; then
     echo "+ gh issue create --title \"$title\" --label $LABEL --body <<'BODY'"
     printf '%s\n' "$body"

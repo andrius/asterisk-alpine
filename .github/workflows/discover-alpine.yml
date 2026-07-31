@@ -1,11 +1,25 @@
 name: discover-alpine
 
 # Daily: detect a stable Alpine MINOR release newer than the pinned STABLE in
-# buildchain/alpine-bases.env (by scraping dl-cdn.alpinelinux.org). When one
-# appears, open ONE GitHub issue to notify in person - the buildchain migration
-# stays a human job (the per-line musl/OpenSSL/gcc breakage a new base causes is
-# not known until it builds). When STABLE catches up to the newest release, the
-# stale issue auto-closes. Phase 1 of the Alpine-version automation plan.
+# buildchain/alpine-bases.env (by scraping dl-cdn.alpinelinux.org).
+#
+#  - Nothing new: auto-close any stale alpine-bump issues (a prior migration
+#    landed). No other output.
+#  - New release detected:
+#      1. validate  - build the modern tier on the new base (allow_fail: a new
+#         base is expected to break some lines; that red/green IS the failure
+#         frontier). Does NOT publish.
+#      2. propose    - open a DRAFT PR setting STABLE=<new>/PREVIOUS=<old> in
+#         alpine-bases.env, and open ONE GitHub issue linking the PR + the
+#         validation run. Notifies in person; the per-line breakage fixes stay
+#         a human job.
+#
+# Why validation runs here (not in the PR branch): a PR opened by GITHUB_TOKEN
+# cannot trigger ci.yml (GitHub loop-prevention), so the build is done in this
+# workflow and the draft PR is informational. Phase 2, Option A.
+#
+# The end-to-end "new release" path only fires when a new Alpine actually ships;
+# it is not exercised on the daily nothing-new runs.
 
 on:
   schedule:
@@ -13,8 +27,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  issues: write   # open / close / comment on the notification issue
+  contents: write        # propose pushes the alpine-bump-<new> branch
+  issues: write          # reconcile/propose open + close the issue
+  pull-requests: write   # propose opens the draft PR
 
 concurrency:
   group: discover-alpine
@@ -23,17 +38,81 @@ concurrency:
 jobs:
   discover:
     runs-on: ubuntu-latest
+    outputs:
+      new: ${{ steps.det.outputs.new }}
+      stable: ${{ steps.det.outputs.stable }}
+      newest: ${{ steps.det.outputs.newest }}
     steps:
       - uses: actions/checkout@v7
       - name: Detect new Alpine release
         id: det
         run: ./scripts/discover-alpine.sh
-      - name: Notify or reconcile via issue
-        if: steps.det.outcome == 'success'
+
+  reconcile:
+    # Nothing new: if STABLE caught up to upstream, close any stale issues.
+    needs: discover
+    if: needs.discover.result == 'success' && needs.discover.outputs.new == ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Close stale alpine-bump issues
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./scripts/notify-alpine-release.sh \
-            '${{ steps.det.outputs.new }}' \
-            '${{ steps.det.outputs.stable }}' \
-            '${{ steps.det.outputs.newest }}'
+            '' '${{ needs.discover.outputs.stable }}' '${{ needs.discover.outputs.newest }}'
+
+  validate:
+    # New release: probe whether the modern tier builds on the new base. Best
+    # effort on every leg - breakage here is the signal, not a failure.
+    needs: discover
+    if: needs.discover.result == 'success' && needs.discover.outputs.new != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { line: "20",      arch: x86_64,  runner: ubuntu-latest }
+          - { line: "20",      arch: aarch64, runner: ubuntu-24.04-arm }
+          - { line: "22",      arch: x86_64,  runner: ubuntu-latest }
+          - { line: "22",      arch: aarch64, runner: ubuntu-24.04-arm }
+          - { line: "22-cert", arch: x86_64,  runner: ubuntu-latest }
+          - { line: "22-cert", arch: aarch64, runner: ubuntu-24.04-arm }
+          - { line: "23",      arch: x86_64,  runner: ubuntu-latest }
+          - { line: "23",      arch: aarch64, runner: ubuntu-24.04-arm }
+    uses: ./.github/workflows/_build.yml
+    with:
+      line: ${{ matrix.line }}
+      arch: ${{ matrix.arch }}
+      runner: ${{ matrix.runner }}
+      platform: ''
+      allow_fail: true
+      alpine_version: ${{ needs.discover.outputs.new }}
+    secrets: inherit
+
+  propose:
+    # Open the draft PR + the issue regardless of which validation legs passed
+    # (breakage is expected; the run link carries the detail).
+    needs: [discover, validate]
+    if: always() && needs.discover.result == 'success' && needs.discover.outputs.new != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Open / refresh draft PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./scripts/open-alpine-bump-pr.sh \
+            '${{ needs.discover.outputs.new }}' \
+            '${{ needs.discover.outputs.stable }}'
+      - name: Open / refresh issue (links PR + validation run)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          ./scripts/notify-alpine-release.sh \
+            '${{ needs.discover.outputs.new }}' \
+            '${{ needs.discover.outputs.stable }}' \
+            '${{ needs.discover.outputs.newest }}' \
+            '${{ steps.pr.outputs.pr_url }}' \
+            "$RUN_URL"
