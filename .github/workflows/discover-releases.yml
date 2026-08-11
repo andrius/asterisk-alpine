@@ -73,6 +73,14 @@ jobs:
           git add packages/*/APKBUILD
           if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
           git commit -m "Bump Asterisk releases ($summary)"
+          # Ground the force-with-lease lease in the remote tip. actions/checkout
+          # only fetches the default branch, so refs/remotes/origin/<branch> is
+          # absent here and --force-with-lease rejects an existing remote branch
+          # as "stale info" on every run after the first. Fetching the ref makes
+          # the lease reflect the real remote state. The || true covers the
+          # first-ever run, when the branch doesn't exist yet (fetch fails, lease
+          # stays absent, --force-with-lease then allows the create).
+          git fetch origin asterisk-new-releases:refs/remotes/origin/asterisk-new-releases 2>/dev/null || true
           git push --force-with-lease origin asterisk-new-releases
           # Reuse an existing PR for this branch if present; otherwise open one.
           # Checking explicitly (not `gh pr create ... || true`) surfaces real
