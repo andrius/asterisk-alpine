@@ -11,7 +11,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # commit the bumps + push the PR branch
+  contents: write      # commit the bumps + push the PR branch
+  pull-requests: write # open the consolidated bump PR
 
 concurrency:
   group: discover-releases
@@ -73,9 +74,16 @@ jobs:
           if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
           git commit -m "Bump Asterisk releases ($summary)"
           git push --force-with-lease origin asterisk-new-releases
-          # create the PR if it does not yet exist; a push updates an existing one
+          # Reuse an existing PR for this branch if present; otherwise open one.
+          # Checking explicitly (not `gh pr create ... || true`) surfaces real
+          # failures like permission errors instead of swallowing them.
+          existing=$(gh pr list --head asterisk-new-releases --state open --json url --jq '.[0].url // empty' 2>/dev/null || true)
+          if [ -n "$existing" ]; then
+            echo "Bump PR already open: $existing"
+            exit 0
+          fi
           gh pr create --title "Bump Asterisk releases" \
             --body "Auto-discovered upstream release bumps (via \`discover-releases.yml\`). Merge to rebuild + publish on the next run.
 
           Bumps: $(awk -F'\t' '{ printf "- **%s**: %s -> %s\n", $1, $2, $3 }' /tmp/bumps.tsv)" \
-            --base main --head asterisk-new-releases || true
+            --base main --head asterisk-new-releases
