@@ -44,6 +44,7 @@ jobs:
       - name: Apply bumps (pkgver + source + abuild checksum)
         if: steps.disc.outputs.has_bumps == 'true'
         run: |
+          mkdir -p repository
           sudo chmod -R a+rwX packages repository keys
           while IFS="$(printf '\t')" read -r line cur new certN base; do
             [ -n "$line" ] || continue
