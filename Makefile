@@ -42,15 +42,25 @@ endif
 print-arch:
 	@echo "ARCH=$(ARCH) DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) SMOKE_LEVEL=$(SMOKE_LEVEL)"
 
+# pkgver for a line, read from its APKBUILD - the single source of truth. Every
+# version shown in help / build / test echoes resolves through here, so a bump
+# landed by discover-releases.yml (which edits only the APKBUILD) propagates to
+# the whole Makefile with no hand-maintained literal to forget. The prior
+# constants drifted: the 22-cert bump to 22.8.0.4 left test-22-cert at 22.8.0.3,
+# so the smoke test installed a version that no longer matched the freshly built
+# package and apk's solver picked the conflicting Alpine-main build instead.
+# Same sed idiom as M0_PKGVER below.
+pkgver-of = $(shell sed -n 's/^pkgver=//p' packages/$(1)/APKBUILD 2>/dev/null | head -1)
+
 # Default target
 help:
 	@echo "Asterisk Alpine Linux Buildchain - multi-version matrix"
 	@echo "========================================================="
 	@echo ""
 	@echo "Build a single Asterisk line:"
-	@echo "  make build-22        Asterisk 22.10.1 (LTS)        on Alpine 3.24"
-	@echo "  make build-23        Asterisk 23.4.1 (current)    on Alpine 3.24"
-	@echo "  make build-20        Asterisk 20.20.1 (LTS)        on Alpine 3.24"
+	@echo "  make build-22        Asterisk $(call pkgver-of,22) (LTS)      on Alpine 3.24"
+	@echo "  make build-23        Asterisk $(call pkgver-of,23) (current) on Alpine 3.24"
+	@echo "  make build-20        Asterisk $(call pkgver-of,20) (LTS)     on Alpine 3.24"
 	@echo ""
 	@echo "Build a tier:"
 	@echo "  make build-modern    20 + 22 + 22-cert + 23 (fast)"
@@ -58,11 +68,11 @@ help:
 	@echo "  make build-all       alias for build-full"
 	@echo ""
 	@echo "Build a single line (per-line targets):"
-	@echo "  make build-16        Asterisk 16.30.1 on Alpine 3.24"
-	@echo "  make build-18        Asterisk 18.26.4 on Alpine 3.24"
-	@echo "  make build-22-cert   Asterisk 22.8.0.3 (certified) on Alpine 3.24"
+	@echo "  make build-16        Asterisk $(call pkgver-of,16) on Alpine 3.24"
+	@echo "  make build-18        Asterisk $(call pkgver-of,18) on Alpine 3.24"
+	@echo "  make build-22-cert   Asterisk $(call pkgver-of,22-cert) (certified) on Alpine 3.24"
 	@echo "  make build-git       Asterisk master snapshot on Alpine 3.24"
-	@echo "  make build-14        Asterisk 14.7.8 (frontier, builds green)"
+	@echo "  make build-14        Asterisk $(call pkgver-of,14) (frontier, builds green)"
 	@echo "  make build-1.8 build-1.6   ancient lines (x86_64 only)"
 	@echo ""
 	@echo "Republish the repo index after builds:"
@@ -104,12 +114,12 @@ init-keys:
 
 # --- Asterisk 22.x (LTS) on Alpine 3.24 ---
 build-22: init-keys
-	@echo "Building Asterisk 22.10.1 on Alpine $(ALPINE_VERSION)..."
+	@echo "Building Asterisk $(call pkgver-of,22) on Alpine $(ALPINE_VERSION)..."
 	@chmod +x scripts/build.sh
 	@chmod +x scripts/build-repo-index.sh
 	docker compose build builder-22$(ALPINE_SUFFIX)
 	docker compose run --rm -e REPODEST=/home/builder/packages/$(ALPINE_VERSION) builder-22$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
-	@echo "✅ Asterisk 22.10.1 packages built"
+	@echo "✅ Asterisk $(call pkgver-of,22) packages built"
 	@$(MAKE) --no-print-directory repo-index-22
 
 shell-22:
@@ -120,12 +130,12 @@ validate-22:
 
 # --- Asterisk 23.x (current) on Alpine 3.24 ---
 build-23: init-keys
-	@echo "Building Asterisk 23.4.1 on Alpine $(ALPINE_VERSION)..."
+	@echo "Building Asterisk $(call pkgver-of,23) on Alpine $(ALPINE_VERSION)..."
 	@chmod +x scripts/build.sh
 	@chmod +x scripts/build-repo-index.sh
 	docker compose build builder-23$(ALPINE_SUFFIX)
 	docker compose run --rm -e REPODEST=/home/builder/packages/$(ALPINE_VERSION) builder-23$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
-	@echo "✅ Asterisk 23.4.1 packages built"
+	@echo "✅ Asterisk $(call pkgver-of,23) packages built"
 	@$(MAKE) --no-print-directory repo-index-22
 
 shell-23:
@@ -239,14 +249,16 @@ test-all: test-image
 	@echo "Running tests against all green versions..."
 	@$(MAKE) --no-print-directory test-23 test-22 test-22-cert test-20 test-18 test-16 test-1.8 test-1.6 test-git
 
-test-23:       test-image ; $(call _run_test,23.4.1)
-test-22:       test-image ; $(call _run_test,22.10.1)
-test-22-cert:  test-image ; $(call _run_test,22.8.0.3,relaxed)
-test-20:       test-image ; $(call _run_test,20.20.1)
-test-18:       test-image ; $(call _run_test,18.26.4)
-test-16:       test-image ; $(call _run_test,16.30.1)
-test-1.8:       test-image ; $(call _run_test,1.8.32.3,relaxed)
-test-1.6:       test-image ; $(call _run_test,1.6.2.24,relaxed)
+# Versions resolve through pkgver-of (defined above) so the smoke test tracks
+# discover-releases bumps without a hand-maintained literal here.
+test-23:       test-image ; $(call _run_test,$(call pkgver-of,23))
+test-22:       test-image ; $(call _run_test,$(call pkgver-of,22))
+test-22-cert:  test-image ; $(call _run_test,$(call pkgver-of,22-cert),relaxed)
+test-20:       test-image ; $(call _run_test,$(call pkgver-of,20))
+test-18:       test-image ; $(call _run_test,$(call pkgver-of,18))
+test-16:       test-image ; $(call _run_test,$(call pkgver-of,16))
+test-1.8:       test-image ; $(call _run_test,$(call pkgver-of,1.8),relaxed)
+test-1.6:       test-image ; $(call _run_test,$(call pkgver-of,1.6),relaxed)
 
 # git pkgver is dynamic (set by git-snapshot.sh at build time); read it at
 # parse time so 'make test-git' works as its own invocation after build-git.
