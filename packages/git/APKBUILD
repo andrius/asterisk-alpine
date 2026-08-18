@@ -6,8 +6,8 @@
 # Best-effort only: master drifts and the musl patches below may stop applying.
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
-pkgver=24.0.0_git20260814
-_gitrev=56c0922216f0b6c3815a5c9131c003179487aff3
+pkgver=24.0.0_git20260818
+_gitrev=19f98688a302958c71614afe74d84023c7f64cc2
 pkgrel=1
 pkgdesc="Modular Open Source PBX System (master/git snapshot)"
 pkgusers="asterisk"
@@ -202,7 +202,7 @@ sound_en() {
 	chown -R asterisk:asterisk "$subpkgdir"/usr/share/asterisk
 }
 sha512sums="
-931dc23c8137683ec57ceddc1486d0f16ab4c37295f32e1b4ec37d59e943e603f9fd523069d8b802e67e2722b7e4f5ca573a75718cb5dbc446f0dad0028c6ba6  asterisk-24.0.0_git20260814.tar.gz
+6d7b01b4884e34cf5ab53be6aedc5636ccc5f33ecb70f9b1bcf1afc8e865b5ec065c44a7f10fbb9e62f0509c2e6e8073ecb1ecec83cad357e3bb634a5429a642  asterisk-24.0.0_git20260818.tar.gz
 771237ba6d42ab62d914f2702234b23fd0bc8c22f2aa33b0e745c9170163c8046f6d48ecb299faab3d6fb397f1aa046421083c3cc88510c9779861c522f357dd  10-musl-mutex-init.patch
 0fae11b42894ab3d405bc50e9275b9084712b482fbf9b4259ea938667fc5cbe413655f3ff83da0f607151bb2b6e49c2f741b5ada6944dbb478f076ef8d86380a  20-musl-astmm-fix.patch
 a51e9b3c7f6f6504775b997bdb41aab025ee15fae8e645280ebf981df9a6da9b61e0fa8297d44e361dd2c9735b7f3e7eba1addcf911350c79b94fb08ffad1e5a  40-asterisk-cdefs.patch
