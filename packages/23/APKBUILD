@@ -3,7 +3,7 @@
 # proven debian:trixie build of 23.4.1 (sha256 verified there).
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
-pkgver=23.4.1
+pkgver=23.5.0
 pkgrel=1
 pkgdesc="Modular Open Source PBX System (23.x current)"
 pkgusers="asterisk"
@@ -216,7 +216,7 @@ sound_en() {
 	chown -R asterisk:asterisk "$subpkgdir"/usr/share/asterisk
 }
 sha512sums="
-b189526328c72d544875ba48a5946ec33aa454739e38e0e7e1e0495604d9cdb96ed4eeae54dd0c6a0d7328022e9737e76097a13ca682a053a1e465d805621501  asterisk-23.4.1.tar.gz
+fcf6a2a5cf418a81b0ca4890ec22981e7a4b54b4da26b6a419ce1cdca6c86bfee502155e3f446426decef0c25b2c41675c2fe237b0211fabf51a074f94ce525e  asterisk-23.5.0.tar.gz
 aacef3f4796fb1abd33266998b53909cb4b36e7cc5ad2f7bac68bdc43e9a9072d9a4e2e7e681bddfa31f3d04575eb248afe6ea95da780c67e4829c1e22adfe1b  asterisk-addon-mp3-r201.patch.gz
 234c05d9b88e20ad117c79224795342561b16c68541bc3d172c1ebb11523e2946214250d25be415c8f30ccdc70efa74b9307d79bf0cc642fafabb224ce03200b  asterisk-13.7-a959f072d3f364be983dd27e6e250b038aaef747.tar.gz
 771237ba6d42ab62d914f2702234b23fd0bc8c22f2aa33b0e745c9170163c8046f6d48ecb299faab3d6fb397f1aa046421083c3cc88510c9779861c522f357dd  10-musl-mutex-init.patch
