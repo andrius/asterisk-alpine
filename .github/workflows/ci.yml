@@ -252,24 +252,29 @@ jobs:
     # successful publish is both safe and more complete - it also covers full-tier
     # weekly/dispatch runs that publish the ancient 16/18 lines, which the
     # push-to-main modern tier never builds. On PRs `publish` is skipped, so this
-    # is skipped too. Skipped when ASTERISK_DISPATCH_TOKEN is unset, so forks and
-    # unconfigured environments stay silent.
+    # is skipped too.
     #
-    # ASTERISK_DISPATCH_TOKEN: a PAT with contents:write on andrius/asterisk
-    # (a fine-grained PAT scoped to that one repo, Contents: read and write; the
-    # default GITHUB_TOKEN cannot trigger events in another repo).
+    # The default GITHUB_TOKEN cannot trigger events in another repo, so the
+    # dispatch uses a token from the asterisk-release-automation App (installed
+    # on both repos), scoped to andrius/asterisk only. It replaces the former
+    # ASTERISK_DISPATCH_TOKEN PAT. Missing App secrets fail this job loudly
+    # instead of reporting success while doing nothing.
     needs: [publish]
     runs-on: ubuntu-latest
     steps:
+      - name: Mint the release-bot App token for andrius/asterisk
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+          owner: andrius
+          repositories: asterisk
       - name: Dispatch alpine-published to andrius/asterisk
         env:
-          ASTERISK_DISPATCH_TOKEN: ${{ secrets.ASTERISK_DISPATCH_TOKEN }}
+          ASTERISK_DISPATCH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          if [ -z "${ASTERISK_DISPATCH_TOKEN:-}" ]; then
-            echo "::notice::ASTERISK_DISPATCH_TOKEN not set - skipping alpine-sync dispatch"
-            exit 0
-          fi
           PAYLOAD=$(jq -n \
             --arg run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{
