@@ -5,7 +5,7 @@
 # Contributor: Duncan Bellamy <dunk@denkimushi.com>
 # Contributor: Timo Teras <timo.teras@iki.fi>
 pkgname=asterisk
-pkgver=20.20.1
+pkgver=20.21.0
 pkgrel=1
 pkgdesc="Modular Open Source PBX System (20.x LTS)"
 pkgusers="asterisk"
@@ -210,7 +210,7 @@ sound_en() {
 	chown -R asterisk:asterisk "$subpkgdir"/usr/share/asterisk
 }
 sha512sums="
-194bb5672ff1051a42f6dcaced2e08d068a32172e9fc06a69b2b61b8bcf675d5479c48894b131580042068e946ea92d0f8f7c52fe07b7ef7a7ed7272579bb1e5  asterisk-20.20.1.tar.gz
+5a1226f02991ce21c1deace50ac0b4e072eedcd145acd47f66f374c0bffe8f0e64da1fe68cc02cdf604d64ed9229c46669d679839312661bfafba8fb0674f7a2  asterisk-20.21.0.tar.gz
 aacef3f4796fb1abd33266998b53909cb4b36e7cc5ad2f7bac68bdc43e9a9072d9a4e2e7e681bddfa31f3d04575eb248afe6ea95da780c67e4829c1e22adfe1b  asterisk-addon-mp3-r201.patch.gz
 69d82b878728f99b7bf7e862025cbc01aa5b6b9332a5372059ea89a788c66fd351f1103989b3573a7a4ba9ff533f3ee2ff5d88de938440e05d6246e41a882306  asterisk-13.7-90e8780faccc79e68c07775c6ab2fe1ffaccfa08.tar.gz
 771237ba6d42ab62d914f2702234b23fd0bc8c22f2aa33b0e745c9170163c8046f6d48ecb299faab3d6fb397f1aa046421083c3cc88510c9779861c522f357dd  10-musl-mutex-init.patch
