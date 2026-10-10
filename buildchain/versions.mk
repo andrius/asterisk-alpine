@@ -21,7 +21,8 @@
 # Reference date: 2026-07-05. See ROADMAP.md.
 
 # ---- BUILT GREEN on Alpine 3.24 (verified: asterisk -V) ----
-23       23.4.1              3.24   target   ok
+24       24.0.0_rc2          3.24   target   tbd:rc-until-ga
+23       23.5.0              3.24   target   ok
 22-cert  22.8-cert3          3.24   target   ok:pgsql,ldap,prometheus-subpkgs-omitted
 22       22.10.1             3.24   target   ok
 20       20.20.1             3.24   target   ok
@@ -41,7 +42,7 @@ git      24.0.0_git20261008  3.24   target   ok:master-snapshot-47949eff
 
 # ---- ARCHITECTURE COVERAGE (see docs/multi-arch-buildchain-design.md) ----
 # native  x86_64, aarch64 : every target line (modern on PR/push, full on tag)
-# 32-bit  armv7,  armhf   : 22, 23 (targets) + 22-cert (best-effort), full tier
+# 32-bit  armv7,  armhf   : 22, 23, 24 (targets) + 22-cert (best-effort), full tier
 #                           only, continue-on-error. Line 20 is x86_64/aarch64.
 #                           Ancient lines (1.6, 1.8) are x86_64 only - not
 #                           validated on aarch64; built in CI on x86_64 (regular).

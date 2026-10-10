@@ -6,8 +6,11 @@
 # pinned in packages/<line>/APKBUILD. Prints one bump record per line that has a
 # newer upstream release (tab-separated):
 #   <line>	<current_pkgver>	<new_pkgver>	<certN|->	<major|base>
-# Regular lines (23, 22, 20, 18, 16): scrape .../asterisk/releases/ for the
+# Regular lines (24, 23, 22, 20, 18, 16): scrape .../asterisk/releases/ for the
 #   newest <major>.x.y; source uses $pkgver so only pkgver + sha512 bump.
+#   A line whose pkgver is a pre-release (24.0.0_rc2) also follows upstream
+#   -rcN tarballs, spelled _rcN for apk, and a GA outranks every RC of it, so
+#   it moves rc2 -> rc3 -> 24.0.0. Lines on a GA pkgver ignore RCs.
 # Certified (22-cert): scrape .../certified-asterisk/releases/ for the newest
 #   asterisk-certified-<base>-cert<N>; the -certN is the 4th pkgver component
 #   (22.8.0.<N>), and source + builddir also embed "cert<N>".
@@ -15,19 +18,30 @@
 # Exit 0 always; the caller checks stdout for bumps. No output = nothing new.
 set -eu
 
-REGULAR_URL="https://downloads.asterisk.org/pub/telephony/asterisk/releases"
-CERTIFIED_URL="https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases"
+REGULAR_URL="${REGULAR_URL:-https://downloads.asterisk.org/pub/telephony/asterisk/releases}"
+CERTIFIED_URL="${CERTIFIED_URL:-https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases}"
 
 # Tracked regular lines (dir names whose major == first pkgver component).
-REGULAR_LINES="23 22 20 18 16"
+REGULAR_LINES="24 23 22 20 18 16"
 CERTIFIED_LINE="22-cert"
 
 pkgver_of() { grep -m1 '^pkgver=' "packages/$1/APKBUILD" | cut -d= -f2; }
 major_of()  { printf '%s' "$1" | cut -d. -f1; }
 
-# strictly_greater a b : is a a newer version than b? (sort -V)
+# relkey v : sort -V key on which a pre-release sorts below its GA
+#   (24.0.0_rc2 -> 24.0.0.2.2, 24.0.0 -> 24.0.0.9.0). Plain sort -V ranks
+#   24.0.0_rc2 above 24.0.0, which would hide the GA from an RC line.
+relkey() {
+  case "$1" in
+    *_alpha*) stage=0 ;; *_beta*) stage=1 ;; *_rc*) stage=2 ;; *) stage=9 ;;
+  esac
+  n=$(printf '%s' "$1" | sed -n -E 's/.*_(alpha|beta|rc)([0-9]*)$/\2/p')
+  printf '%s.%s.%s' "${1%%_*}" "$stage" "${n:-0}"
+}
+
+# strictly_greater a b : is a a newer version than b? (sort -V on relkey)
 strictly_greater() {
-  [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | tail -1)" = "$1" ]
+  [ "$1" != "$2" ] && [ "$(printf '%s %s\n%s %s\n' "$(relkey "$2")" "$2" "$(relkey "$1")" "$1" | sort -V | tail -1 | cut -d' ' -f2)" = "$1" ]
 }
 
 echo "# discover: $(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" >&2
@@ -38,10 +52,15 @@ INDEX_CERTIFIED=$(curl -fsSL --retry 2 "$CERTIFIED_URL/" 2>/dev/null || true)
 for line in $REGULAR_LINES; do
   cur=$(pkgver_of "$line")
   maj=$(major_of "$cur")
+  case "$cur" in
+    *_alpha*|*_beta*|*_rc*) pre='(-(alpha|beta|rc)[0-9]+)?' ;;  # RC line: RCs and the GA
+    *) pre='' ;;                                               # GA line: GA only
+  esac
   latest=$(printf '%s' "$INDEX_REGULAR" \
-    | grep -oE "asterisk-${maj}\.[0-9]+\.[0-9]+\.tar\.gz" \
-    | sed -e 's/^asterisk-//' -e 's/\.tar\.gz$//' \
-    | sort -V | tail -1)
+    | grep -oE "asterisk-${maj}\.[0-9]+\.[0-9]+${pre}\.tar\.gz" \
+    | sed -E -e 's/^asterisk-//' -e 's/\.tar\.gz$//' -e 's/-(alpha|beta|rc)/_\1/' \
+    | while read -r v; do printf '%s %s\n' "$(relkey "$v")" "$v"; done \
+    | sort -V | tail -1 | cut -d' ' -f2)
   if [ -n "$latest" ] && strictly_greater "$latest" "$cur"; then
     printf '%s\t%s\t%s\t-\t%s\n' "$line" "$cur" "$latest" "$maj"
     echo "# $line: $cur -> $latest" >&2

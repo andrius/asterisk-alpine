@@ -12,8 +12,8 @@ repository on **[Cloudsmith](https://cloudsmith.io/~asterisk/repos/alpine/)**
 > not affiliated with Sangoma or the official Asterisk project. "Asterisk" is a
 > trademark of Sangoma Technologies.
 
-Available lines (each built and smoke-tested in CI): **23** (current), **22**
-(LTS), **22-cert** (certified), **20**, plus **18 / 16** (LTS, EOL) and the
+Available lines (each built and smoke-tested in CI): **24** (next LTS; release
+candidates until 24.0.0 ships), **23** (current), **22** (LTS), **22-cert** (certified), **20**, plus **18 / 16** (LTS, EOL) and the
 **git** line (master snapshot, best-effort). The LTS `22.10` and certified
 `22.8` builds coexist in the same repository. Ancient **1.6** and **1.8**
 build too (musl module-load patched) for archaeology.
@@ -34,6 +34,7 @@ echo "@andrius-asterisk https://dl.cloudsmith.io/public/asterisk/alpine/alpine/v
   >> /etc/apk/repositories
 
 # 3. Install the line you want, pinned to this repo
+apk add "asterisk@andrius-asterisk=~24"      # 24.x  next LTS (release candidates until GA)
 apk add "asterisk@andrius-asterisk=~23"      # 23.x  current
 apk add "asterisk@andrius-asterisk=~22"      # 22.x  LTS (22.10)
 apk add "asterisk@andrius-asterisk=~22.8"    # 22.8  certified

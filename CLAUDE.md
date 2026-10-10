@@ -13,7 +13,8 @@ from ten independent APKBUILD directories under `packages/`:
 
 | Line | pkgver | Tier | Arches |
 |---|---|---|---|
-| `23` | 23.4.1 | modern (current) | x86_64, aarch64, armv7, armhf |
+| `24` | 24.0.0_rc2 | modern (next LTS; RCs until GA, apk spells `-rc2` as `_rc2`) | x86_64, aarch64, armv7, armhf |
+| `23` | 23.5.0 | modern (current) | x86_64, aarch64, armv7, armhf |
 | `22` | 22.10.1 | modern (LTS) | x86_64, aarch64, armv7, armhf |
 | `22-cert` | 22.8.0.3 | modern (certified) | x86_64, aarch64, armv7, armhf |
 | `20` | 20.20.1 | modern | x86_64, aarch64 |
@@ -98,7 +99,7 @@ best summary of *why* a line looks the way it does.
 ### Groups
 
 ```bash
-make build-modern       # 20 + 22 + 22-cert + 23
+make build-modern       # 20 + 22 + 22-cert + 23 + 24
 make build-full         # modern + 18 + 16 + git
 make test-all           # smoke-test every green line
 ```
