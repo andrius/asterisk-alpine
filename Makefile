@@ -1,8 +1,8 @@
 .PHONY: help list build clean init-keys build-docker build-packages repo-index test-asterisk shell info validate
-.PHONY: build-22 build-23 build-20 build-modern build-all build-full
+.PHONY: build-22 build-23 build-24 build-20 build-modern build-all build-full
 .PHONY: build-16 build-18 build-22-cert build-14 build-1.8 build-1.6 build-git
-.PHONY: shell-22 shell-23 shell-20 shell-16 shell-18 shell-22-cert shell-1.8 shell-1.6 shell-git validate-22 validate-23
-.PHONY: test test-all test-22 test-23 test-20 test-18 test-16 test-22-cert test-1.8 test-1.6 test-git
+.PHONY: shell-22 shell-23 shell-24 shell-20 shell-16 shell-18 shell-22-cert shell-1.8 shell-1.6 shell-git validate-22 validate-23 validate-24
+.PHONY: test test-all test-22 test-23 test-24 test-20 test-18 test-16 test-22-cert test-1.8 test-1.6 test-git
 
 # --- Target architecture (multi-arch builds) --------------------------------
 # ARCH selects which Alpine arch to build/test. abuild inside the container
@@ -60,11 +60,12 @@ help:
 	@echo "Build a single Asterisk line:"
 	@echo "  make build-22        Asterisk $(call pkgver-of,22) (LTS)      on Alpine 3.24"
 	@echo "  make build-23        Asterisk $(call pkgver-of,23) (current) on Alpine 3.24"
+	@echo "  make build-24        Asterisk $(call pkgver-of,24) (next LTS, release candidates until GA) on Alpine 3.24"
 	@echo "  make build-20        Asterisk $(call pkgver-of,20) (LTS)     on Alpine 3.24"
 	@echo ""
 	@echo "Build a tier:"
-	@echo "  make build-modern    20 + 22 + 22-cert + 23 (fast)"
-	@echo "  make build-full      20 + 22 + 22-cert + 23 + 18 + 16 + git"
+	@echo "  make build-modern    20 + 22 + 22-cert + 23 + 24 (fast)"
+	@echo "  make build-full      20 + 22 + 22-cert + 23 + 24 + 18 + 16 + git"
 	@echo "  make build-all       alias for build-full"
 	@echo ""
 	@echo "Build a single line (per-line targets):"
@@ -144,6 +145,22 @@ shell-23:
 validate-23:
 	docker compose run --rm builder-23 sh -c "cd /home/builder/main/asterisk && abuild sanitycheck"
 
+# --- Asterisk 24.x (next LTS; release candidates until GA) on Alpine 3.24 ---
+build-24: init-keys
+	@echo "Building Asterisk $(call pkgver-of,24) on Alpine $(ALPINE_VERSION)..."
+	@chmod +x scripts/build.sh
+	@chmod +x scripts/build-repo-index.sh
+	docker compose build builder-24$(ALPINE_SUFFIX)
+	docker compose run --rm -e REPODEST=/home/builder/packages/$(ALPINE_VERSION) builder-24$(ALPINE_SUFFIX) sh /home/builder/scripts/build.sh
+	@echo "✅ Asterisk $(call pkgver-of,24) packages built"
+	@$(MAKE) --no-print-directory repo-index-22
+
+shell-24:
+	docker compose run --rm builder-24 /bin/sh
+
+validate-24:
+	docker compose run --rm builder-24 sh -c "cd /home/builder/main/asterisk && abuild sanitycheck"
+
 # --- Green lines (14/16/18/20/22-cert/1.6/1.8) on Alpine 3.24 ---
 build-20 build-18 build-16 build-22-cert build-14 build-1.8 build-1.6: init-keys
 	@echo "Building Asterisk line $(@:build-%=%) on Alpine $(ALPINE_VERSION)..."
@@ -167,8 +184,8 @@ shell-18 shell-16 shell-22-cert shell-1.8 shell-1.6 shell-git:
 	docker compose run --rm builder-$(@:shell-%=%) /bin/sh
 
 # --- Tier groupings ---
-build-modern: build-20 build-22 build-22-cert build-23
-build-full:   build-23 build-22 build-22-cert build-20 build-18 build-16 build-git
+build-modern: build-20 build-22 build-22-cert build-23 build-24
+build-full:   build-24 build-23 build-22 build-22-cert build-20 build-18 build-16 build-git
 build-all:    build-full
 
 # ============================================================================
@@ -247,10 +264,11 @@ test: test-image
 
 test-all: test-image
 	@echo "Running tests against all green versions..."
-	@$(MAKE) --no-print-directory test-23 test-22 test-22-cert test-20 test-18 test-16 test-1.8 test-1.6 test-git
+	@$(MAKE) --no-print-directory test-24 test-23 test-22 test-22-cert test-20 test-18 test-16 test-1.8 test-1.6 test-git
 
 # Versions resolve through pkgver-of (defined above) so the smoke test tracks
 # discover-releases bumps without a hand-maintained literal here.
+test-24:       test-image ; $(call _run_test,$(call pkgver-of,24))
 test-23:       test-image ; $(call _run_test,$(call pkgver-of,23))
 test-22:       test-image ; $(call _run_test,$(call pkgver-of,22))
 test-22-cert:  test-image ; $(call _run_test,$(call pkgver-of,22-cert),relaxed)
@@ -282,6 +300,7 @@ clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf packages/22/src packages/22/pkg
 	@rm -rf packages/23/src packages/23/pkg
+	@rm -rf packages/24/src packages/24/pkg
 	@rm -rf packages/$(M0_LINE)/src packages/$(M0_LINE)/pkg
 	@docker compose run --rm builder-$(M0_LINE) \
 		sh -c "cd /home/builder/main/asterisk && abuild clean cleanpkg" || true

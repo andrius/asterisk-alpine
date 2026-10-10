@@ -42,8 +42,10 @@ echo "  installed: $(apk info asterisk 2>/dev/null | head -1)"
 # 3. Verify the version reports correctly.
 REPORTED=$(asterisk -V 2>&1)
 echo "[3/5] version check: '${REPORTED}'"
+# A release candidate is pkgver 24.0.0_rc2 but reports "Asterisk 24.0.0-rc2".
+VER_REPORTED=$(printf '%s' "$VER" | sed -E 's/_(alpha|beta|rc)/-\1/')
 case "$REPORTED" in
-    *"$VER"*) ;;  # 22.10.1 matches "Asterisk 22.10.1"; certified matches via the cert label handled by caller
+    *"$VER_REPORTED"*) ;;  # 22.10.1 matches "Asterisk 22.10.1"; certified matches via the cert label handled by caller
     *)
         # Certified reports "certified-22.8-cert3" not the pkgver 22.8.0.3;
         # accept if the version was passed in a relaxed form.
