@@ -175,8 +175,10 @@ duplicate uploads that shadow the completed copies and every download 404s.
   `discover-alpine.yml` push and open PRs with its token: `GITHUB_TOKEN` may not
   open PRs here, and PRs it opens would not trigger `ci.yml`. `notify-consumer`
   mints a token scoped to `andrius/asterisk` to send `alpine-published`; it
-  replaced the `ASTERISK_DISPATCH_TOKEN` PAT. Rotating the App key means
-  updating `RELEASE_BOT_PRIVATE_KEY` in both repos.
+  replaced the `ASTERISK_DISPATCH_TOKEN` PAT. Each repo holds its own App
+  private key (this one was generated 2026-10-10; `andrius/asterisk` keeps its
+  older key), so a key is rotated per repo and deleting one on the App page
+  breaks only the repo that uses it.
 
 Local credentials live in `.ai-secrets.md` (gitignored, never committed).
 
