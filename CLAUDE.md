@@ -167,10 +167,16 @@ duplicate uploads that shadow the completed copies and every download 404s.
 
 - `CLOUDSMITH_API_KEY` - required; pushes to Cloudsmith.
 - `ABUILD_PRIVATE_KEY`, `ABUILD_KEY_NAME` - sign packages during the build.
-- `BLOG_DISPATCH_TOKEN` - notifies the andrius.mobi timeline.
-- `ASTERISK_DISPATCH_TOKEN` - **not currently set.** The `notify-consumer` job
-  needs it to poke `andrius/asterisk`; without it the job exits 0 and reports
-  *success* while doing nothing.
+- `BLOG_DISPATCH_TOKEN` - notifies the andrius.mobi timeline (fine-grained PAT,
+  `andrius/blog` Contents read and write; same token as in `andrius/asterisk`).
+- `RELEASE_BOT_APP_ID`, `RELEASE_BOT_PRIVATE_KEY` - the
+  `asterisk-release-automation` GitHub App (App ID 2143908), shared with
+  `andrius/asterisk` and installed on both repos. `discover-releases.yml` and
+  `discover-alpine.yml` push and open PRs with its token: `GITHUB_TOKEN` may not
+  open PRs here, and PRs it opens would not trigger `ci.yml`. `notify-consumer`
+  mints a token scoped to `andrius/asterisk` to send `alpine-published`; it
+  replaced the `ASTERISK_DISPATCH_TOKEN` PAT. Rotating the App key means
+  updating `RELEASE_BOT_PRIVATE_KEY` in both repos.
 
 Local credentials live in `.ai-secrets.md` (gitignored, never committed).
 

@@ -25,7 +25,24 @@ jobs:
       ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
       ABUILD_KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
     steps:
+      # GITHUB_TOKEN cannot open PRs (the repo's "Allow GitHub Actions to create
+      # and approve pull requests" switch is off), and PRs it did open would not
+      # trigger ci.yml's `on: pull_request` leg, so the bumps would land
+      # unvalidated. The asterisk-release-automation App - the same one
+      # andrius/asterisk uses - has neither limit.
+      - name: Mint the release-bot App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          # RELEASE_BOT_APP_ID holds the numeric App ID; create-github-app-token
+          # accepts it as client-id (GitHub still honors the App ID as the JWT
+          # issuer) and that spelling avoids the deprecated app-id input.
+          client-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
       - uses: actions/checkout@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
       - uses: docker/setup-buildx-action@v4
       - name: Install signing key (abuild env)
         run: ./scripts/ci-install-signing-key.sh
@@ -64,7 +81,7 @@ jobs:
       - name: Open / update the consolidated PR
         if: steps.disc.outputs.has_bumps == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
