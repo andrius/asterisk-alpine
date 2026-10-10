@@ -64,7 +64,11 @@ jobs:
         run: |
           mkdir -p repository
           sudo chmod -R a+rwX packages repository keys
-          while IFS="$(printf '\t')" read -r line cur new certN base; do
+          # The loop reads bumps.tsv on fd 3, not stdin: `docker compose run`
+          # reads stdin and swallowed the remaining lines, so only the first
+          # discovered bump was ever applied (2026-10-10: 23 bumped, 22 and 20
+          # dropped).
+          while IFS="$(printf '\t')" read -r line cur new certN base <&3; do
             [ -n "$line" ] || continue
             echo "=== $line: $cur -> $new (cert=$certN base=$base) ==="
             apk="packages/$line/APKBUILD"
@@ -75,8 +79,8 @@ jobs:
               sed -i "s|${base}-cert${cur_cert}|${base}-cert${certN}|g" "$apk"
             fi
             docker compose build "builder-$line"
-            docker compose run --rm "builder-$line" sh -c 'abuild clean || true; abuild checksum'
-          done < /tmp/bumps.tsv
+            docker compose run --rm "builder-$line" sh -c 'abuild clean || true; abuild checksum' </dev/null
+          done 3< /tmp/bumps.tsv
 
       - name: Open / update the consolidated PR
         if: steps.disc.outputs.has_bumps == 'true'
