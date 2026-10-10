@@ -288,3 +288,54 @@ jobs:
             https://api.github.com/repos/andrius/asterisk/dispatches \
             -d "$PAYLOAD"
           echo "Dispatched alpine-published to andrius/asterisk"
+
+  detect-bumps:
+    # pkgver bumps that landed in this push to main (the discover bump PRs
+    # merging), for the social announcement. Same rule as notify-blog: only
+    # packages/*/APKBUILD pkgver changes count, the git line is excluded, so
+    # weekly rebuilds and infra changes stay silent.
+    needs: [publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.detect.outputs.versions }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect pkgver bumps in this push
+        id: detect
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          VERSIONS=""
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            for f in $(git diff --name-only "$BEFORE" "$AFTER" -- 'packages/*/APKBUILD' ':(exclude)packages/git/APKBUILD'); do
+              [ -f "$f" ] || continue   # line removed in this push
+              old=$(git show "$BEFORE:$f" 2>/dev/null | sed -n 's/^pkgver=//p' | head -1 || true)
+              new=$(sed -n 's/^pkgver=//p' "$f" | head -1)
+              if [ -n "$new" ] && [ "$new" != "$old" ]; then
+                VERSIONS="$VERSIONS $new"
+              fi
+            done
+          else
+            echo "::notice::before-commit unavailable (force push?) - nothing to announce"
+          fi
+          VERSIONS=$(echo "$VERSIONS" | xargs)
+          echo "versions=$VERSIONS" >> "$GITHUB_OUTPUT"
+          echo "pkgver bumps: ${VERSIONS:-none}"
+
+  announce:
+    # Telegram + Mastodon post for the bumped versions. The called workflow
+    # pushes announced-* tags, so this job must grant contents: write: a
+    # reusable workflow cannot get more permissions than its caller.
+    needs: [detect-bumps]
+    if: needs.detect-bumps.outputs.versions != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/announce-releases.yml
+    with:
+      versions: ${{ needs.detect-bumps.outputs.versions }}
+    secrets: inherit

@@ -1,0 +1,212 @@
+name: Announce Releases
+
+# Posts a single grouped announcement to Telegram and Mastodon for one or more
+# newly published Alpine apk versions, then pushes an `announced-<version>` git
+# tag per version so the same version is never announced twice. Mirrors
+# andrius/asterisk's announce-releases.yml (same channel, same account); the
+# andrius.mobi timeline entry is posted separately by ci.yml's notify-blog job.
+#
+# Triggered by:
+#   - `workflow_call` from ci.yml after a push to main that bumped pkgver= and
+#     published successfully.
+#   - `workflow_dispatch` for manual backfill, recovery, or dry-run preview.
+
+on:
+  workflow_call:
+    inputs:
+      versions:
+        description: "Space-separated list of apk versions to announce"
+        required: true
+        type: string
+      dry_run:
+        description: "Preview only - skip posts and tag pushes"
+        required: false
+        type: boolean
+        default: false
+      force:
+        description: "Re-announce even if `announced-<version>` tag exists"
+        required: false
+        type: boolean
+        default: false
+
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Space-separated apk versions (e.g. '22.11.0 23.5.0')"
+        required: true
+        type: string
+      dry_run:
+        description: "Preview only - skip posts and tag pushes"
+        required: false
+        type: boolean
+        default: false
+      force:
+        description: "Re-announce even if `announced-<version>` tag exists"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # required to push announced-* tags
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Filter un-announced versions
+        id: filter
+        env:
+          INPUT_VERSIONS: ${{ inputs.versions }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          REMAINING=()
+          SKIPPED=()
+
+          for v in $INPUT_VERSIONS; do
+            [ -z "$v" ] && continue
+            TAG="announced-$v"
+            if [ "$FORCE" = "true" ]; then
+              REMAINING+=("$v")
+              echo "⚙️  $v will be announced (force=true)"
+              continue
+            fi
+            if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "refs/tags/$TAG"; then
+              SKIPPED+=("$v")
+              echo "⏭️  $v already announced (tag $TAG exists)"
+            else
+              REMAINING+=("$v")
+              echo "✅ $v will be announced"
+            fi
+          done
+
+          if [ ${#REMAINING[@]} -eq 0 ]; then
+            echo "has_versions=false" >> "$GITHUB_OUTPUT"
+            echo "versions=" >> "$GITHUB_OUTPUT"
+            echo "📋 Nothing to announce"
+          else
+            echo "has_versions=true" >> "$GITHUB_OUTPUT"
+            echo "versions=${REMAINING[*]}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "skipped=${SKIPPED[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare announcement message
+        id: message
+        if: steps.filter.outputs.has_versions == 'true'
+        env:
+          FILTERED_VERSIONS: ${{ steps.filter.outputs.versions }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          VERSION_LIST=$(echo "$FILTERED_VERSIONS" | tr ' ' '\n' | sed 's/^/- /')
+          PREFIX=""
+          if [ "$DRY_RUN" = "true" ]; then
+            PREFIX="🔍 DRY RUN - "
+          fi
+
+          MASTODON_MESSAGE="${PREFIX}📦 New Asterisk Alpine packages released!
+
+          Versions:
+          ${VERSION_LIST}
+
+          Alpine 3.24 repo: https://dl.cloudsmith.io/public/asterisk/alpine/alpine/v3.24/main
+          Install: apk add asterisk@andrius-asterisk
+          Setup: https://github.com/${REPO}#readme
+          "
+
+          # Telegram MarkdownV2 requires escaping these special chars
+          TELEGRAM_MESSAGE=$(echo "$MASTODON_MESSAGE" | sed 's/[_*[\]()~`>#+=|{}.!-]/\\&/g')
+
+          {
+            echo "telegram_message<<MSG_EOF"
+            echo "$TELEGRAM_MESSAGE"
+            echo "MSG_EOF"
+            echo "mastodon_message<<MSG_EOF"
+            echo "$MASTODON_MESSAGE"
+            echo "MSG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Dry-run preview
+        if: steps.filter.outputs.has_versions == 'true' && inputs.dry_run == true
+        env:
+          TG_MSG: ${{ steps.message.outputs.telegram_message }}
+          MD_MSG: ${{ steps.message.outputs.mastodon_message }}
+        run: |
+          {
+            echo "## Dry-run preview"
+            echo
+            echo "### Telegram"
+            echo '```'
+            printf '%s\n' "$TG_MSG"
+            echo '```'
+            echo "### Mastodon"
+            echo '```'
+            printf '%s\n' "$MD_MSG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$MD_MSG"
+
+      - name: Announce on Telegram
+        if: steps.filter.outputs.has_versions == 'true' && inputs.dry_run != true && vars.TELEGRAM_CHAT_ID != ''
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ vars.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: ${{ steps.message.outputs.telegram_message }}
+          format: markdown
+
+      - name: Announce on Mastodon
+        if: steps.filter.outputs.has_versions == 'true' && inputs.dry_run != true && vars.MASTODON_URL != ''
+        uses: cbrgm/mastodon-github-action@v2.1.8
+        with:
+          access-token: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          url: ${{ vars.MASTODON_URL }}
+          message: ${{ steps.message.outputs.mastodon_message }}
+
+      - name: Tag announced versions
+        if: steps.filter.outputs.has_versions == 'true' && inputs.dry_run != true
+        env:
+          FILTERED_VERSIONS: ${{ steps.filter.outputs.versions }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for v in $FILTERED_VERSIONS; do
+            TAG="announced-$v"
+            if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "refs/tags/$TAG"; then
+              echo "🏷️  $TAG already on remote - not re-pushing"
+              continue
+            fi
+            git tag -a "$TAG" -m "Announced on Telegram and Mastodon"
+            git push origin "$TAG"
+            echo "🏷️  Pushed tag $TAG"
+          done
+
+      - name: Summary
+        if: always()
+        env:
+          INPUT_VERSIONS: ${{ inputs.versions }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          FORCE: ${{ inputs.force }}
+          ANNOUNCED: ${{ steps.filter.outputs.versions }}
+          SKIPPED: ${{ steps.filter.outputs.skipped }}
+        run: |
+          {
+            echo "## Announce summary"
+            echo
+            echo "- **Input**: \`$INPUT_VERSIONS\`"
+            echo "- **Mode**: $( [ "$DRY_RUN" = "true" ] && echo "dry-run" || echo "live" )"
+            echo "- **Force**: $FORCE"
+            if [ -n "$ANNOUNCED" ]; then
+              echo "- **Announced**: \`$ANNOUNCED\`"
+            else
+              echo "- **Announced**: _(none)_"
+            fi
+            if [ -n "$SKIPPED" ]; then
+              echo "- **Skipped (already announced)**: \`$SKIPPED\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
