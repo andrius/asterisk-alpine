@@ -5,7 +5,7 @@
 # rcN -> rcN+1 -> 24.0.0 automatically. Same patches and addons as 23.
 # Maintainer: Andrius Kairiukstis <k@c0.lt>
 pkgname=asterisk
-pkgver=24.0.0_rc2
+pkgver=24.0.0_rc4
 _pkgver=${pkgver/_rc/-rc}
 pkgrel=0
 pkgdesc="Modular Open Source PBX System (24.x next LTS)"
@@ -214,7 +214,7 @@ sound_en() {
 	chown -R asterisk:asterisk "$subpkgdir"/usr/share/asterisk
 }
 sha512sums="
-791df84fc8e56d031281fcc2f9d34b923d3d1d049a9c69abc82f261f53e729c5b89883b8fe3d8e78394acb76abe56c3d28778fd5dd1f64caa9602a23fecf3644  asterisk-24.0.0-rc2.tar.gz
+bd6ec1e30529256be3489822d0a88c6fc72b12118b576f8e1260d13b92e9bd03298afccfbef694c499250ccb3aeb63f8754bff2406eebfbffdd644b366a778b4  asterisk-24.0.0-rc4.tar.gz
 aacef3f4796fb1abd33266998b53909cb4b36e7cc5ad2f7bac68bdc43e9a9072d9a4e2e7e681bddfa31f3d04575eb248afe6ea95da780c67e4829c1e22adfe1b  asterisk-addon-mp3-r201.patch.gz
 234c05d9b88e20ad117c79224795342561b16c68541bc3d172c1ebb11523e2946214250d25be415c8f30ccdc70efa74b9307d79bf0cc642fafabb224ce03200b  asterisk-13.7-a959f072d3f364be983dd27e6e250b038aaef747.tar.gz
 771237ba6d42ab62d914f2702234b23fd0bc8c22f2aa33b0e745c9170163c8046f6d48ecb299faab3d6fb397f1aa046421083c3cc88510c9779861c522f357dd  10-musl-mutex-init.patch
