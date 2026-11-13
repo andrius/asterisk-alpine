@@ -31,7 +31,7 @@
 
 # ---- dev: Asterisk master, snapshotted from git (pkgver + _gitrev set by
 # ---- scripts/git-snapshot.sh; rebuild via 'make build-git') ----
-git      24.0.0_git20261105  3.24   target   ok:master-snapshot-7dc7542a
+git      24.0.0_git20261113  3.24   target   ok:master-snapshot-df26b8d4
 
 # ---- FAILURE FRONTIER ( pjproject ABI break on modern pjproject ) ----
 14       14.7.8              3.24   target   ok:pj_in_addr+srtp-gcm-keysize-patches
