@@ -32,6 +32,7 @@ if [ "$DRY_RUN" = 1 ]; then
   echo "+ sed -i \"s|^PREVIOUS=.*|PREVIOUS=$STABLE|\" buildchain/alpine-bases.env"
   echo "+ git checkout -B $BRANCH"
   echo "+ git commit buildchain/alpine-bases.env"
+  echo "+ git fetch origin $BRANCH:refs/remotes/origin/$BRANCH (ground the lease)"
   echo "+ git push --force-with-lease origin $BRANCH"
   echo "+ gh pr create --draft --base main --head $BRANCH --title \"Alpine $NEW: migrate buildchain (draft)\""
   exit 0
@@ -51,6 +52,14 @@ if git diff --cached --quiet; then
 else
   git commit -m "Alpine $NEW: set STABLE=$NEW, PREVIOUS=$STABLE (auto-detected)"
 fi
+# Ground the force-with-lease lease in the remote tip (same fix as
+# discover-releases, PR #49): actions/checkout fetches only the triggering
+# ref, so refs/remotes/origin/<branch> is absent and --force-with-lease
+# rejects the already-existing remote branch as "stale info" on every run
+# after the first. The || true covers the first-ever run, when the branch
+# doesn't exist yet (fetch fails, lease stays absent, --force-with-lease
+# then allows the create).
+git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null || true
 git push --force-with-lease origin "$BRANCH"
 
 # Reuse an existing draft PR for this branch if present; otherwise open one.

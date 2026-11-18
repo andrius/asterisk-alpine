@@ -31,11 +31,16 @@ PR_URL="${4:-}"   # optional: the draft PR opened by open-alpine-bump-pr.sh
 RUN_URL="${5:-}"   # optional: the validation-build run URL
 LABEL=alpine-bump
 
-# Idempotent scoping-label creation (write - guarded by DRY_RUN).
+# Create-or-update the scoping label (write - guarded by DRY_RUN). gh has no
+# --if-not-exists (cli/cli#5450 settled on --force); the old bogus flag made
+# this fail silently, then gh issue create 422'd on the missing label. Warn,
+# don't fail: if this token cannot manage labels, the issue step below
+# surfaces the real error.
 if [ "$DRY_RUN" = 1 ]; then
-  echo "+ gh label create $LABEL --color BFD4F2 --if-not-exists"
+  echo "+ gh label create $LABEL --color BFD4F2 --force"
 else
-  gh label create "$LABEL" --color BFD4F2 --if-not-exists 2>/dev/null || true
+  gh label create "$LABEL" --color BFD4F2 --force 2>/dev/null \
+    || echo "WARN: gh label create $LABEL failed (continuing)" >&2
 fi
 
 if [ -n "$NEW" ]; then
