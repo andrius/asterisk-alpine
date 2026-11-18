@@ -79,6 +79,8 @@ jobs:
           - { line: "22-cert", arch: aarch64, runner: ubuntu-24.04-arm }
           - { line: "23",      arch: x86_64,  runner: ubuntu-latest }
           - { line: "23",      arch: aarch64, runner: ubuntu-24.04-arm }
+          - { line: "24",      arch: x86_64,  runner: ubuntu-latest }
+          - { line: "24",      arch: aarch64, runner: ubuntu-24.04-arm }
     uses: ./.github/workflows/_build.yml
     with:
       line: ${{ matrix.line }}
