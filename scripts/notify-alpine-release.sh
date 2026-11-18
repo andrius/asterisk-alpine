@@ -81,8 +81,20 @@ Validation build (modern tier on $NEW): $RUN_URL"; fi
     echo "+ gh issue create --title \"$title\" --label $LABEL --body <<'BODY'"
     printf '%s\n' "$body"
     echo "BODY"
+    echo "+ gh issue edit <new> --add-label $LABEL (creation silently drops labels without push access)"
   else
-    gh issue create --title "$title" --label "$LABEL" --body "$body"
+    url=$(gh issue create --title "$title" --label "$LABEL" --body "$body")
+    echo "$url"
+    # GitHub silently drops labels on issue CREATION for actors without push
+    # access (the release-bot App): re-apply the label explicitly, then
+    # verify it stuck - the auto-close path lists issues BY LABEL and would
+    # otherwise never find (nor close) this issue.
+    num=${url##*/}
+    gh issue edit "$num" --add-label "$LABEL" >/dev/null 2>&1 || true
+    labeled=$(gh issue view "$num" --json labels \
+      --jq ".labels | map(.name) | index(\"$LABEL\") != null" 2>/dev/null || echo false)
+    [ "$labeled" = true ] \
+      || echo "WARN: issue #$num is missing the $LABEL label - auto-close will miss it" >&2
   fi
 else
   # STABLE tracks the newest release: auto-close any stale alpine-bump issues.
