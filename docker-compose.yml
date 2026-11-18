@@ -29,7 +29,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/23:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -43,7 +43,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/24:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -57,7 +57,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/git:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -72,7 +72,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "edge"
+        ALPINE_VERSION: "${ALPINE_TAG:-edge}"
     volumes:
       - ./packages/22:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -86,7 +86,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "edge"
+        ALPINE_VERSION: "${ALPINE_TAG:-edge}"
     volumes:
       - ./packages/23:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -100,7 +100,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "edge"
+        ALPINE_VERSION: "${ALPINE_TAG:-edge}"
     volumes:
       - ./packages/git:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -114,7 +114,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/22-cert:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -128,7 +128,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/1.8:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -142,7 +142,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/1.6:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -156,7 +156,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/14:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -170,7 +170,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/16:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -184,7 +184,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/18:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -198,7 +198,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/20:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw
@@ -212,7 +212,7 @@ services:
       context: .
       dockerfile: docker/builder.Dockerfile
       args:
-        ALPINE_VERSION: "3.24"
+        ALPINE_VERSION: "${ALPINE_TAG:-3.24}"
     volumes:
       - ./packages/22:/home/builder/main/asterisk:rw
       - ./repository:/home/builder/packages:rw

@@ -30,8 +30,13 @@ endif
 # ALPINE_VERSION is the repo-dir form (v3.24 or edge); the Docker image tag is
 # the same with a leading "v" stripped. Edge appends "-edge" to the builder and
 # test-image names so the 3.24 and edge trees coexist. Default: stable 3.24.
+# ALPINE_TAG is exported: docker-compose.yml interpolates it into every builder
+# service's ALPINE_VERSION build-arg, so `ALPINE_VERSION=v3.25 make build-23`
+# (the discover-alpine validate path) builds the BUILDER on 3.25 too - the
+# per-service literals used to pin it to 3.24 no matter what the env said.
 ALPINE_VERSION ?= v3.24
 ALPINE_TAG := $(ALPINE_VERSION:v%=%)
+export ALPINE_TAG
 ifeq ($(ALPINE_VERSION),edge)
   ALPINE_SUFFIX := -edge
 else
