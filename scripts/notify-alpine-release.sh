@@ -27,8 +27,9 @@ DRY_RUN=0
 NEW="${1:-}"
 STABLE="${2:-}"
 NEWEST="${3:-}"
-PR_URL="${4:-}"   # optional: the draft PR opened by open-alpine-bump-pr.sh
+PR_URL="${4:-}"    # optional: the draft PR opened by open-alpine-bump-pr.sh
 RUN_URL="${5:-}"   # optional: the validation-build run URL
+WAITING="${6:-}"   # optional: missing prerequisites (check-alpine-readiness.sh)
 LABEL=alpine-bump
 
 # Create-or-update the scoping label (write - guarded by DRY_RUN). gh has no
@@ -77,6 +78,11 @@ Draft PR (buildchain change): $PR_URL"; fi
   if [ -n "$RUN_URL" ]; then body="${body}
 
 Validation build (modern tier on $NEW): $RUN_URL"; fi
+  # Readiness gate note: when a prerequisite is still missing, the linked run
+  # shows validate as skipped - say why, so the issue is self-explanatory.
+  if [ -n "$WAITING" ]; then body="${body}
+
+Upstream readiness: not actionable yet - waiting on: $WAITING. Validation builds start automatically (daily retries) once these appear; until then the run linked above shows them skipped."; fi
   if [ "$DRY_RUN" = 1 ]; then
     echo "+ gh issue create --title \"$title\" --label $LABEL --body <<'BODY'"
     printf '%s\n' "$body"
