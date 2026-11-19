@@ -45,18 +45,21 @@ else
 fi
 
 if [ -n "$NEW" ]; then
-  # Notify once: if an open alpine-bump issue already covers this version, skip.
-  # .[0] // empty: empty array indexes to null, which // drops to no output.
-  existing=$(gh issue list --label "$LABEL" --state open \
+  # Notify once: if an open issue already covers this version, skip. Match by
+  # the deterministic TITLE, not by label: the release-bot App token that runs
+  # this step is label-blind (label-filtered lists return empty for it, and
+  # label create/add silently fail - run 44410836953 duplicated #59 into #62
+  # that way). .[0] // empty: empty array indexes to null, which // drops.
+  title="Alpine $NEW released - migrate the buildchain"
+  existing=$(gh issue list --state open \
     --json number,title \
-    --jq "[.[] | select(.title | contains(\"$NEW\")) | .number] | .[0] // empty" \
+    --jq "[.[] | select(.title == \"$title\") | .number] | .[0] // empty" \
     2>/dev/null || true)
   if [ -n "$existing" ]; then
-    echo "Open $LABEL issue #$existing already covers $NEW - not duplicating."
+    echo "Open issue #$existing already covers $NEW - not duplicating."
     exit 0
   fi
 
-  title="Alpine $NEW released - migrate the buildchain"
   body=$(cat <<EOF
 A new stable Alpine release **$NEW** is available upstream; this suite pins **$STABLE**.
 
@@ -103,13 +106,21 @@ Upstream readiness: not actionable yet - waiting on: $WAITING. Validation builds
       || echo "WARN: issue #$num is missing the $LABEL label - auto-close will miss it" >&2
   fi
 else
-  # STABLE tracks the newest release: auto-close any stale alpine-bump issues.
-  count=$(gh issue list --label "$LABEL" --state open --json number --jq 'length' 2>/dev/null || echo 0)
+  # STABLE tracks the newest release: auto-close any stale migration issues.
+  # Match by the deterministic TITLE pattern, with the label as decoration:
+  # App-created issues can end up unlabeled (the propose token cannot manage
+  # labels), and this job's label-filtered listing would miss them exactly
+  # like the dedup above did (#62).
+  MIGRATE_TITLE='^Alpine v[0-9.]+ released - migrate the buildchain$'
+  count=$(gh issue list --state open --json number,title \
+    --jq "[.[] | select(.title | test(\"$MIGRATE_TITLE\")) | .number] | length" \
+    2>/dev/null || echo 0)
   if [ "$count" = "0" ]; then
     echo "Nothing new (STABLE=$STABLE = upstream $NEWEST); no open issues to close."
     exit 0
   fi
-  for n in $(gh issue list --label "$LABEL" --state open --json number --jq '.[].number'); do
+  for n in $(gh issue list --state open --json number,title \
+      --jq "[.[] | select(.title | test(\"$MIGRATE_TITLE\")) | .number] | .[]"); do
     if [ "$DRY_RUN" = 1 ]; then
       echo "+ gh issue close $n --reason completed --comment \"...STABLE=$STABLE / newest=$NEWEST...\""
     else
@@ -117,5 +128,5 @@ else
         --comment "Closing automatically: STABLE now tracks $STABLE (newest upstream $NEWEST). Migration complete."
     fi
   done
-  echo "Closed $count stale $LABEL issue(s)."
+  echo "Closed $count stale migration issue(s)."
 fi
